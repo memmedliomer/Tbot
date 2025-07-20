@@ -9,6 +9,7 @@ from telegram.ext import (
     ContextTypes,
     ConversationHandler,
 )
+from telegram.error import BadRequest
 
 TOKEN = "7981599020:AAGRhaJZbvMQ1n9Y7qrnBDKWYZcsVX3FV88"
 
@@ -80,18 +81,6 @@ for qrup_kodu, fenn_siyahisi in qebul_fenn_strukturu.items():
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def evvelki_addimi_tap(context: ContextTypes.DEFAULT_TYPE, cari_addim: str) -> str | None:
-    """Verilən cari addıma gətirib çıxaran əvvəlki addımı tapır."""
-    imtahan_tipi = context.user_data.get('imtahan_tipi')
-    if not imtahan_tipi:
-        return None
-    
-    butun_addimlar = ADDIMLAR.get(imtahan_tipi, {})
-    for addim_adi, melumat in butun_addimlar.items():
-        if melumat.get('novbeti_addim') == cari_addim:
-            return addim_adi
-    return None
-
 async def ana_menyunu_goster(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
     keyboard = [
@@ -105,16 +94,7 @@ async def ana_menyunu_goster(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.callback_query.answer()
         await update.callback_query.edit_message_text(text=mesaj_metni, reply_markup=reply_markup)
     else:
-        chat_id = update.effective_chat.id
-        son_mesaj_id = context.user_data.pop('son_bot_mesaji_id', None)
-        if son_mesaj_id:
-            try:
-                await context.bot.delete_message(chat_id, son_mesaj_id)
-            except Exception:
-                pass
-        mesaj = await update.message.reply_text(text=mesaj_metni, reply_markup=reply_markup)
-        context.user_data['son_bot_mesaji_id'] = mesaj.message_id
-
+        await update.message.reply_text(text=mesaj_metni, reply_markup=reply_markup)
     return VEZIYYET_IMTAHAN_SECIMI
 
 async def istifade_telimatini_goster(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -122,13 +102,11 @@ async def istifade_telimatini_goster(update: Update, context: ContextTypes.DEFAU
     await query.answer()
     telimat_metni = (
         "ℹ️ *İstifadə Təlimatı*\n\n"
-        "1️⃣ *İmtahan Növünü Seçin:* Ana menyudan 'Buraxılış' və ya 'Qəbul' imtahanını seçin.\n\n"
-        "2️⃣ *Sinif/Qrup Seçin:* Açılan menyudan imtahan verdiyiniz sinfi və ya qrupu (lazım gələrsə alt-qrupu) seçin.\n\n"
-        "3️⃣ *Məlumatları Daxil Edin:* Bot sizdən ardıcıl olaraq hər fənn üzrə nəticələrinizi soruşacaq. Rəqəmləri botun istədiyi formatda daxil edin (məsələn, tam ədəd və ya 0.5 aralıqlı).\n\n"
-        "4️⃣ *Təsdiqləyin:* Hər məlumatı daxil etdikdən sonra '✅ Təsdiq et' düyməsi ilə növbəti addıma keçin. Səhv daxil etmisinizsə, '✏️ Düzəliş et' ilə geri qayıda bilərsiniz.\n\n"
-        "5️⃣ *Nəticəni Əldə Edin:* Bütün məlumatları daxil etdikdən sonra bot yekun balınızı hesablayıb sizə təqdim edəcək.\n\n"
-        "❌ İstənilən mərhələdə prosesi dayandırmaq üçün '❌ Prosesi Ləğv et' düyməsindən istifadə edə bilərsiniz. Bu, sizi avtomatik olaraq ana menyuya qaytaracaq.\n\n"
-        "⚠️ Gözlənilməz problem yaranarsa və ya bot cavab vermirsə, `/start` komandasını yazaraq botu yenidən başlada bilərsiniz."
+        "1️⃣ *İmtahan Seçimi:* Ana menyudan imtahan növünü (Buraxılış/Qəbul), sonra isə sinif və ya qrupu seçin.\n\n"
+        "2️⃣ *Məlumatların Daxil Edilməsi:* Botun təqdim etdiyi suallara ardıcıl cavab verin. Hər cavabdan sonra Enter düyməsini basın.\n\n"
+        "3️⃣ *Düzəliş və Ləğv:* Səhv məlumat daxil etsəniz, '✏️ Düzəliş et' ilə əvvəlki addıma qayıda, '❌ Ləğv et' ilə isə prosesi dayandırıb ana menyuya qayıda bilərsiniz.\n\n"
+        "🧹 *Ekranı Təmizləmək:* Söhbət pəncərəsi qarışıq olduqda, istənilən zaman `/temizle` yazıb göndərərək son 50 mesajı silə bilərsiniz.\n\n"
+        "📈 *Nəticə:* Bütün məlumatlar daxil edildikdən sonra bot yekun balınızı hesablayacaq."
     )
     keyboard = [[InlineKeyboardButton("↩️ Geri", callback_data='meny_ana')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -213,15 +191,7 @@ async def novbeti_suali_sorus(update: Update, context: ContextTypes.DEFAULT_TYPE
     imtahan_tipi = context.user_data['imtahan_tipi']
     addim_melumati = ADDIMLAR[imtahan_tipi][addim_adi]
     
-    # Geri düyməsi üçün əvvəlki addımı tapmaq
-    evvelki_addim = evvelki_addimi_tap(context, addim_adi)
-    
-    keyboard_buttons = []
-    if evvelki_addim:
-        keyboard_buttons.append(InlineKeyboardButton("↩️ Geri", callback_data=evvelki_addim))
-    keyboard_buttons.append(InlineKeyboardButton("❌ Prosesi Ləğv et", callback_data='legv_et'))
-    
-    keyboard = [keyboard_buttons]
+    keyboard = [[InlineKeyboardButton("❌ Prosesi Ləğv et", callback_data='legv_et')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     mesaj_metni = addim_melumati['sorğu']
@@ -243,8 +213,8 @@ async def daxil_edilen_metni_yoxla(update: Update, context: ContextTypes.DEFAULT
     if son_bot_mesaji_id:
         try:
             await context.bot.delete_message(chat_id, son_bot_mesaji_id)
-        except Exception as e:
-            logger.info(f"Köhnə mesaj silinə bilmədi: {e}")
+        except BadRequest:
+            logger.info(f"Köhnə mesaj silinə bilmədi (artıq silinib və ya tapılmadı).")
 
     daxil_edilen = update.message.text.replace(',', '.')
     addim_adi = context.user_data['cari_addim']
@@ -281,15 +251,14 @@ async def daxil_edilen_metni_yoxla(update: Update, context: ContextTypes.DEFAULT
 
     if not is_valid:
         error_mesaj = await context.bot.send_message(chat_id=chat_id, text=error_msg)
-        context.user_data['son_bot_mesaji_id'] = error_mesaj.message_id
-        await novbeti_suali_sorus(update, context, addim_adi=addim_adi) # Səhv halında sualı yenidən göstər
+        context.user_data['son_bot_mesaji_id'] = error_mesaj.message_id # Xəta mesajının ID-sini yadda saxla
         return VEZIYYET_SUAL_GOZLEME
     
     context.user_data['temp_deyer'] = temp_deyer
     
     keyboard = [
-        [InlineKeyboardButton("❌ Prosesi Ləğv et", callback_data='legv_et')],
-        [InlineKeyboardButton("✏️ Düzəliş et", callback_data=addim_adi), InlineKeyboardButton("✅ Təsdiq et", callback_data=f"tesdiq_{addim_adi}")]
+        [InlineKeyboardButton("✅ Təsdiq et", callback_data=f"tesdiq_{addim_adi}")],
+        [InlineKeyboardButton("✏️ Düzəliş et", callback_data=addim_adi), InlineKeyboardButton("❌ Ləğv et", callback_data='legv_et')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     təsdiq_mesaji = await context.bot.send_message(chat_id=chat_id, text=f"Daxil etdiyiniz məlumat: *{temp_deyer}*\nBu məlumat doğrudurmu?", reply_markup=reply_markup, parse_mode='Markdown')
@@ -305,9 +274,7 @@ async def daxil_edilen_reqemi_tesdiqle(update: Update, context: ContextTypes.DEF
     context.user_data[addim_melumati['veri_acari']] = context.user_data.pop('temp_deyer')
     novbeti_addim_adi = addim_melumati['novbeti_addim']
     
-    if novbeti_addim_adi == 'son_hesablama':
-        return await netice_hesabla_ve_goster(update, context)
-    elif 'cedvel' in novbeti_addim_adi:
+    if 'cedvel' in novbeti_addim_adi:
         context.user_data['cari_addim'] = novbeti_addim_adi
         return await ballandirma_cedvelini_goster(update, context)
     else:
@@ -332,15 +299,10 @@ async def ballandirma_cedvelini_goster(update: Update, context: ContextTypes.DEF
             sira.append(InlineKeyboardButton(text, callback_data=f"cedvel_secim_{sual_nomresi}_{deyer_data}"))
         keyboard.append(sira)
     
-    # Geri düyməsi üçün əvvəlki addımı tapmaq
-    evvelki_addim = evvelki_addimi_tap(context, addim_adi)
-    control_buttons = []
-    if evvelki_addim:
-        control_buttons.append(InlineKeyboardButton("↩️ Geri", callback_data=evvelki_addim))
-    control_buttons.append(InlineKeyboardButton("❌ Ləğv et", callback_data='legv_et'))
-    control_buttons.append(InlineKeyboardButton("✅ Təsdiq et", callback_data='tesdiq_cedvel'))
-    keyboard.append(control_buttons)
-    
+    keyboard.append([
+        InlineKeyboardButton("❌ Ləğv et", callback_data='legv_et'),
+        InlineKeyboardButton("✅ Təsdiq et", callback_data='tesdiq_cedvel')
+    ])
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     mesaj = None
@@ -380,13 +342,7 @@ async def cedveli_tesdiqle_ve_davam_et(update: Update, context: ContextTypes.DEF
     if novbeti_addim_adi == 'son_hesablama':
         return await netice_hesabla_ve_goster(update, context)
     else:
-        # Növbəti addımın "cedvel" olub-olmadığını yoxlamaq
-        novbeti_addim_info = ADDIMLAR[imtahan_tipi].get(novbeti_addim_adi)
-        if novbeti_addim_info and 'suallar' in novbeti_addim_info: # Heuristic for cedvel
-             context.user_data['cari_addim'] = novbeti_addim_adi
-             return await ballandirma_cedvelini_goster(update, context)
-        else:
-             return await novbeti_suali_sorus(update, context, addim_adi=novbeti_addim_adi)
+        return await novbeti_suali_sorus(update, context, addim_adi=novbeti_addim_adi)
 
 def fenn_bali_hesabla(data, fenn_kodu):
     Dq = data.get(f'{fenn_kodu}_qapali_duz', 0)
@@ -404,7 +360,6 @@ def fenn_bali_hesabla(data, fenn_kodu):
 
 async def netice_hesabla_ve_goster(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
-    await query.answer()
     data = context.user_data
     imtahan_tipi = data['imtahan_tipi']
     netice_metni = ""
@@ -430,13 +385,14 @@ async def netice_hesabla_ve_goster(update: Update, context: ContextTypes.DEFAULT
                 yekun_ballar.append(max(0, yekun_bal))
             
             total_bal = sum(yekun_ballar)
+            qrup_adi = imtahan_tipi.replace('qebul_', '').replace('_', ' ').upper()
             
-            netice_metni = f"🎉 *Nəticəniz* 🎉\n"
+            netice_metni = f"🎉 *Nəticəniz ({qrup_adi})* 🎉\n"
             for i, (_, fenn_adi, emoji) in enumerate(fennler):
-                netice_metni += f"\n{emoji} *{fenn_adi}:* {yekun_ballar[i]:.2f} bal"
+                netice_metni += f"\n{emoji} *{fenn_adi}:* {yekun_ballar[i]:.1f} bal\n"
 
-            netice_metni += "\n\n-------------------------------------\n"
-            netice_metni += f"🏆 *ÜMUMİ BAL:* {total_bal:.2f}"
+            netice_metni += "\n-------------------------------------\n"
+            netice_metni += f"🏆 *ÜMUMİ BAL:* {total_bal:.1f}"
         
         elif imtahan_tipi.startswith('buraxilis'):
             bal_az = bal_ingilis = bal_riyaziyyat = 0.0
@@ -451,7 +407,7 @@ async def netice_hesabla_ve_goster(update: Update, context: ContextTypes.DEFAULT
                 n_riyaziyyat_kodlashdirma = data.get('riyaziyyat_kodlashdirma', 0)
                 sum_riyaziyyat_cedvel = sum(float(v) for v in data.get('riyaziyyat_cedvel_secimleri', {}).values())
                 bal_riyaziyyat = (25 / 8) * (2 * sum_riyaziyyat_cedvel + n_riyaziyyat_qapali + n_riyaziyyat_kodlashdirma)
-            else: # 9-cu sinif modelləri
+            else:
                 n_az_qapali = data.get('az_dili_qapali', 0)
                 sum_az_cedvel = sum(float(v) for v in data.get('az_dili_cedvel_secimleri', {}).values())
                 bal_az = ((2 * sum_az_cedvel + n_az_qapali) * 100) / 34
@@ -461,21 +417,23 @@ async def netice_hesabla_ve_goster(update: Update, context: ContextTypes.DEFAULT
                 bal_riyaziyyat = ((2 * sum_riyaziyyat_cedvel + n_riyaziyyat_kodlashdirma + n_riyaziyyat_qapali) * 100) / 29
                 if imtahan_tipi == 'buraxilis_9_2025':
                     n_ingilis_qapali, n_ingilis_kodlashdirma, n_ingilis_esse = data.get('ingilis_qapali', 0), data.get('ingilis_kodlashdirma', 0), data.get('ingilis_esse', 0)
-                    bal_ingilis = ((n_ingilis_esse + 2*n_ingilis_kodlashdirma + n_ingilis_qapali) * 100) / 30
-                else: # buraxilis_9_kohne
+                    bal_ingilis_raw = ((n_ingilis_esse + 0 + n_ingilis_kodlashdirma + n_ingilis_qapali) * 100) / 30
+                    bal_ingilis = min(100.0, bal_ingilis_raw)
+                else:
                     n_ingilis_qapali = data.get('ingilis_qapali', 0)
                     sum_ingilis_cedvel = sum(float(v) for v in data.get('ingilis_cedvel_secimleri', {}).values())
                     bal_ingilis = ((2 * sum_ingilis_cedvel + n_ingilis_qapali) * 100) / 34
 
             total_bal = bal_az + bal_ingilis + bal_riyaziyyat
-            netice_metni = (f"🎉 *Nəticəniz* 🎉\n"
-                           f"\n🇦🇿 *Ana dili:* {bal_az:.2f} bal"
-                           f"\n🇬🇧 *Xarici dil:* {bal_ingilis:.2f} bal"
-                           f"\n🧮 *Riyaziyyat:* {bal_riyaziyyat:.2f} bal\n"
+            imtahan_basligi = imtahan_tipi.replace('_', ' ').replace('buraxilis ', '').title()
+            netice_metni = (f"🎉 *Nəticəniz ({imtahan_basligi})* 🎉\n"
+                           f"\n🇦🇿 *Ana dili:* {bal_az:.1f} bal\n"
+                           f"\n🇬🇧 *Xarici dil:* {bal_ingilis:.1f} bal\n"
+                           f"\n🧮 *Riyaziyyat:* {bal_riyaziyyat:.1f} bal\n"
                            "\n-------------------------------------\n"
-                           f"🏆 *ÜMUMİ BAL:* {total_bal:.2f}")
+                           f"🏆 *ÜMUMİ BAL:* {total_bal:.1f}")
     except Exception as e:
-        logger.error(f"Hesablama zamanı xəta baş verdi: {e}", exc_info=True)
+        logger.error(f"Hesablama zamanı xəta baş verdi: {e}")
         netice_metni = "Nəticələri hesablayarkən xəta baş verdi. Zəhmət olmasa, /start ilə yenidən cəhd edin."
     
     keyboard = [[InlineKeyboardButton("🏠 Ana Səhifə", callback_data='meny_ana')]]
@@ -488,16 +446,24 @@ async def prosesi_legv_et(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     query = update.callback_query
     context.user_data.clear()
     if query:
-        await query.answer("Proses ləğv edildi.")
-    
+        await query.answer()
     return await ana_menyunu_goster(update, context)
+
+async def ekrani_temizle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_id = update.effective_chat.id
+    try:
+        for i in range(50):
+            await context.bot.delete_message(chat_id, update.message.message_id - i)
+    except BadRequest:
+        pass
+    except Exception as e:
+        logger.error(f"Mesajları silərkən xəta: {e}")
+    
+    await context.bot.send_message(chat_id, "Ekran təmizləndi. Yeni hesablama üçün /start yazın.")
 
 def main() -> None:
     application = Application.builder().token(TOKEN).build()
     
-    # Regex for matching any step name (alphanumeric with underscores)
-    addim_regex = r'^[a-z0-9_]+$'
-
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', ana_menyunu_goster)],
         states={
@@ -510,27 +476,23 @@ def main() -> None:
                 CallbackQueryHandler(ana_menyunu_goster, pattern='^meny_ana$'),
                 CallbackQueryHandler(istifade_telimatini_goster, pattern='^meny_telimat$')
             ],
-            VEZIYYET_SUAL_GOZLEME: [
-                # Geri və Düzəliş et düymələri üçün eyni funksiyanı çağırırıq
-                CallbackQueryHandler(novbeti_suali_sorus, pattern=addim_regex),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, daxil_edilen_metni_yoxla)
-            ],
+            VEZIYYET_SUAL_GOZLEME: [MessageHandler(filters.TEXT & ~filters.COMMAND, daxil_edilen_metni_yoxla)],
             VEZIYYET_TESDIQ_GOZLEME: [
                 CallbackQueryHandler(daxil_edilen_reqemi_tesdiqle, pattern='^tesdiq_'),
-                # "Düzəliş et" və "Geri" düymələri bu regex ilə tutulur
-                CallbackQueryHandler(novbeti_suali_sorus, pattern=addim_regex)
+                CallbackQueryHandler(novbeti_suali_sorus, pattern='^(riyaziyyat|fizika|kimya|cografiya|tarix|edebiyyat|az_dili|biologiya|altqrup|informatika)')
             ],
             VEZIYYET_CEDVEL_SECIMI: [
                 CallbackQueryHandler(cedvel_secimini_isle, pattern='^cedvel_'),
                 CallbackQueryHandler(cedveli_tesdiqle_ve_davam_et, pattern='^tesdiq_cedvel$'),
-                # Cədvəl ekranında "Geri" düyməsi
-                CallbackQueryHandler(novbeti_suali_sorus, pattern=addim_regex),
             ],
         },
         fallbacks=[CallbackQueryHandler(prosesi_legv_et, pattern='^legv_et'), CommandHandler('start', ana_menyunu_goster)],
         persistent=False, name="imtahan_sohbeti"
     )
+
     application.add_handler(conv_handler)
+    application.add_handler(CommandHandler('temizle', ekrani_temizle))
+
     print("Bot işə düşdü...")
     application.run_polling()
 
