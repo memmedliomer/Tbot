@@ -83,8 +83,9 @@ logger = logging.getLogger(__name__)
 
 async def addim_yadda_saxla(context: ContextTypes.DEFAULT_TYPE, addim: str):
     addim_tarixcesi = context.user_data.get('addim_tarixcesi', [])
-    addim_tarixcesi.append(addim)
-    context.user_data['addim_tarixcesi'] = addim_tarixcesi
+    if not addim_tarixcesi or addim_tarixcesi[-1] != addim:
+        addim_tarixcesi.append(addim)
+        context.user_data['addim_tarixcesi'] = addim_tarixcesi
 
 async def ana_menyunu_goster(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
@@ -106,13 +107,21 @@ async def istifade_telimatini_goster(update: Update, context: ContextTypes.DEFAU
     query = update.callback_query
     await query.answer()
     telimat_metni = (
-        "ℹ️ *İstifadə Təlimatı*\n\n"
-        "1️⃣ *İmtahan Seçimi:* Ana menyudan imtahan növünü (Buraxılış/Qəbul), sonra isə sinif və ya qrupu seçin.\n\n"
-        "2️⃣ *Məlumatların Daxil Edilməsi:* Botun təqdim etdiyi suallara ardıcıl cavab verin.\n\n"
-        "3️⃣ *Naviqasiya:* '↩️ Geri' ilə əvvəlki addıma qayıda, '❌ Ləğv et' ilə isə prosesi dayandırıb ana menyuya qayıda bilərsiniz.\n\n"
-        "🧹 *Ekranı Təmizləmək:* Söhbət pəncərəsi qarışıq olduqda, istənilən zaman `/temizle` yazıb göndərərək son mesajları silə bilərsiniz."
+        "ℹ️ *Botdan Necə İstifadə Etməli?*\n\n"
+        "Bu bot DİM imtahan nəticələrini sürətli və dəqiq hesablamaq üçün yaradılıb.\n\n"
+        "*Əsas Addımlar:*\n"
+        "1️⃣ *İmtahanı Seçin:* `/start` əmri ilə ana menyuya qayıdın. 'Qəbul' və ya 'Buraxılış' düymələrindən birini seçərək öz imtahan növünüzü təyin edin.\n\n"
+        "2️⃣ *Məlumatları Daxil Edin:* Botun sizə göstərdiyi suallara uyğun olaraq nəticələrinizi (düz, səhv, bal və s.) yazıb göndərin.\n\n"
+        "3️⃣ *Nəticəni Əldə Edin:* Bütün məlumatları təsdiqlədikdən sonra bot yekun balınızı dərhal hesablayıb göstərəcək.\n\n"
+        "--- \n"
+        "*İdarəetmə Düymələri və Əmrlər:*\n\n"
+        "↩️ *Geri:* Proses zamanı bir əvvəlki addıma qayıtmaq üçün istifadə olunur.\n\n"
+        "✏️ *Düzəliş et:* Daxil etdiyiniz son rəqəmi yenidən yazmaq üçün istifadə olunur.\n\n"
+        "❌ *Ləğv et:* Hesablama prosesini tamamilə dayandırıb avtomatik olaraq ana menyuya qayıtmaq üçün istifadə olunur.\n\n"
+        "🧹 `/temizle` *əmri:* Söhbət pəncərəsini təmizləmək üçün bu əmri yazıb göndərin. Bot son mesajları silməyə çalışacaq.\n\n"
+        "Uğurlar!"
     )
-    keyboard = [[InlineKeyboardButton("↩️ Geri", callback_data='meny_ana')]]
+    keyboard = [[InlineKeyboardButton("↩️ Ana Səhifəyə Qayıt", callback_data='meny_ana')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(text=telimat_metni, reply_markup=reply_markup, parse_mode='Markdown')
     return VEZIYYET_IMTAHAN_SECIMI
@@ -192,7 +201,7 @@ async def novbeti_suali_sorus(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.answer()
         addim_adi = query.data
 
-    await addim_yadda_saxla(context, context.user_data.get('cari_addim', ''))
+    await addim_yadda_saxla(context, context.user_data.get('cari_addim', 'meny_ana'))
     context.user_data['cari_addim'] = addim_adi
     imtahan_tipi = context.user_data['imtahan_tipi']
     addim_melumati = ADDIMLAR[imtahan_tipi][addim_adi]
@@ -382,7 +391,7 @@ async def netice_hesabla_ve_goster(update: Update, context: ContextTypes.DEFAULT
                 if imtahan_tipi == 'buraxilis_9_2025':
                     bal_ingilis_raw = ((data.get('ingilis_esse', 0) + data.get('ingilis_kodlashdirma', 0) + data.get('ingilis_qapali', 0)) * 100) / 30
                     bal_ingilis = min(100.0, bal_ingilis_raw)
-                else: # 9_kohne
+                else:
                     bal_ingilis = ((2 * sum(float(v) for v in data.get('ingilis_cedvel_secimleri', {}).values()) + data.get('ingilis_qapali', 0)) * 100) / 34
             
             total_bal = bal_az + bal_ingilis + bal_riyaziyyat
@@ -406,8 +415,6 @@ async def prosesi_legv_et(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     query = update.callback_query
     if query:
         await query.answer()
-    
-    # Köhnə mesajı silib menyunu göstərmək üçün ana funksiyanı çağırırıq
     return await ana_menyunu_goster(update, context)
 
 async def geri_get(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -415,6 +422,10 @@ async def geri_get(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await query.answer()
     addim_tarixcesi = context.user_data.get('addim_tarixcesi', [])
     
+    # Cari addımı tarixdən çıxarırıq ki, təkrarlanmasın
+    if context.user_data.get('cari_addim') in addim_tarixcesi:
+        addim_tarixcesi.pop()
+
     if addim_tarixcesi:
         evvelki_addim = addim_tarixcesi.pop()
         context.user_data['addim_tarixcesi'] = addim_tarixcesi
@@ -431,10 +442,9 @@ async def geri_get(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def ekrani_temizle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
     try:
-        # Son 50 mesajı silməyə çalışır
         for i in range(50):
             await context.bot.delete_message(chat_id, update.message.message_id - i)
-    except BadRequest: pass # Mesaj çox köhnədirsə və ya tapılmırsa xətanı keç
+    except BadRequest: pass
     except Exception as e: logger.error(f"Mesajları silərkən xəta: {e}")
     
     await context.bot.send_message(chat_id, "Ekran təmizləndi. Yeni hesablama üçün /start yazın.")
@@ -457,7 +467,7 @@ def main() -> None:
             VEZIYYET_SUAL_GOZLEME: [MessageHandler(filters.TEXT & ~filters.COMMAND, daxil_edilen_metni_yoxla)],
             VEZIYYET_TESDIQ_GOZLEME: [
                 CallbackQueryHandler(daxil_edilen_reqemi_tesdiqle, pattern='^tesdiq_'),
-                CallbackQueryHandler(novbeti_suali_sorus, pattern='^.+$') # Düzəliş et
+                CallbackQueryHandler(novbeti_suali_sorus, pattern='^.+$')
             ],
             VEZIYYET_CEDVEL_SECIMI: [
                 CallbackQueryHandler(cedvel_secimini_isle, pattern='^cedvel_'),
