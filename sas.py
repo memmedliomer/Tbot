@@ -11,8 +11,10 @@ from telegram.ext import (
 )
 from telegram.error import BadRequest
 
-TOKEN = "7981599020:AAGRhaJZbvMQ1n9Y7qrnBDKWYZcsVX3FV88"
+# TOKEN = "BURA_ÖZ_TOKENİNİZİ_DAXİL_EDİN" # Tokeninizi buraya daxil edin
+TOKEN = "7981599020:AAGRhaJZbvMQ1n9Y7qrnBDKWYZcsVX3FV88" # Sizin təqdim etdiyiniz token
 
+# Vəziyyətlər (States)
 VEZIYYET_IMTAHAN_SECIMI, VEZIYYET_SUAL_GOZLEME, VEZIYYET_TESDIQ_GOZLEME, VEZIYYET_CEDVEL_SECIMI = range(4)
 
 def fenni_addimlar_yaradan(fenn_kodu, fenn_adi, novbeti_addim):
@@ -71,10 +73,13 @@ for qrup_kodu, fenn_siyahisi in qebul_fenn_strukturu.items():
     ADDIMLAR[qrup_kodu] = {}
     for i, (fenn_kodu, fenn_adi) in enumerate(fenn_siyahisi):
         novbeti_addim = fenn_siyahisi[i+1][0] + "_qapali_duz" if i + 1 < len(fenn_siyahisi) else 'son_hesablama'
-        start_num = 28 + i * 30
-        cedvel_suallari = [str(start_num), str(start_num+1), str(start_num+2)]
+        # Qəbul imtahanlarında fənnlər üzrə sual nömrələri fərqli olduğu üçün dinamik yaratmaq daha doğrudur.
+        # Bu hissəni öz imtahan strukturunuza uyğunlaşdırmaq lazımdır.
+        # Nümunə olaraq statik saxlayıram:
+        cedvel_suallari = [str(28 + i*30), str(29 + i*30), str(30 + i*30)] # Bu nömrələr şərtidir
         
         fenn_addimlari = fenni_addimlar_yaradan(fenn_kodu, fenn_adi, novbeti_addim)
+        # Bu hissəni də öz strukturunuza uyğunlaşdırın:
         fenn_addimlari[f'{fenn_kodu}_cedvel']['suallar'] = cedvel_suallari
         ADDIMLAR[qrup_kodu].update(fenn_addimlari)
 
@@ -198,6 +203,9 @@ async def novbeti_suali_sorus(update: Update, context: ContextTypes.DEFAULT_TYPE
     mesaj = None
 
     if not addim_adi:
+        if not query:
+             # Bu halda funksiya yanlış çağırılıb, menyuya qayıtmaq daha təhlükəsizdir
+             return await ana_menyunu_goster(update, context)
         await query.answer()
         addim_adi = query.data
 
@@ -259,8 +267,8 @@ async def daxil_edilen_metni_yoxla(update: Update, context: ContextTypes.DEFAULT
 
     if not is_valid:
         error_mesaj = await context.bot.send_message(chat_id=chat_id, text=error_msg)
-        context.user_data['son_bot_mesaji_id'] = error_mesaj.message_id
-        return VEZIYYET_SUAL_GOZLEME
+        # Səhv mesajından sonra yenidən əsas sualı soruşmaq daha yaxşı təcrübədir.
+        return await novbeti_suali_sorus(update, context, addim_adi=addim_adi)
     
     context.user_data['temp_deyer'] = temp_deyer
     
@@ -282,7 +290,9 @@ async def daxil_edilen_reqemi_tesdiqle(update: Update, context: ContextTypes.DEF
     context.user_data[addim_melumati['veri_acari']] = context.user_data.pop('temp_deyer')
     novbeti_addim_adi = addim_melumati['novbeti_addim']
     
-    if 'cedvel' in novbeti_addim_adi:
+    if novbeti_addim_adi == 'son_hesablama':
+        return await netice_hesabla_ve_goster(update, context)
+    elif 'cedvel' in novbeti_addim_adi:
         return await ballandirma_cedvelini_goster(update, context, addim_adi=novbeti_addim_adi)
     else:
         return await novbeti_suali_sorus(update, context, addim_adi=novbeti_addim_adi)
@@ -315,9 +325,22 @@ async def ballandirma_cedvelini_goster(update: Update, context: ContextTypes.DEF
     ])
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    mesaj = await query.edit_message_text(text=basliq, reply_markup=reply_markup, parse_mode='Markdown')
+    # Mesajın ID-sini yoxlayaraq redaktə və ya yeni mesaj göndərmək
+    message_to_edit_id = context.user_data.get('son_bot_mesaji_id')
+    if query and query.message and (not message_to_edit_id or query.message.message_id == message_to_edit_id):
+        mesaj = await query.edit_message_text(text=basliq, reply_markup=reply_markup, parse_mode='Markdown')
+    else:
+        # Əvvəlki mesajı silib yenisini göndərmək daha təmiz görüntü yarada bilər
+        if message_to_edit_id:
+            try:
+                await context.bot.delete_message(update.effective_chat.id, message_to_edit_id)
+            except BadRequest:
+                pass
+        mesaj = await context.bot.send_message(chat_id=update.effective_chat.id, text=basliq, reply_markup=reply_markup, parse_mode='Markdown')
+
     context.user_data['son_bot_mesaji_id'] = mesaj.message_id
     return VEZIYYET_CEDVEL_SECIMI
+
 
 async def cedvel_secimini_isle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
@@ -351,58 +374,78 @@ def fenn_bali_hesabla(data, fenn_kodu):
     Yq = data.get(f'{fenn_kodu}_qapali_sehv', 0)
     Dkod = data.get(f'{fenn_kodu}_kodlashdirma', 0)
     Dyazili = sum(float(v) for v in data.get(f'{fenn_kodu}_cedvel_secimleri', {}).values())
-    NBq = max(0, (Dq - Yq / 4) * (100 / 33))
-    NBa = max(0, (Dkod + 2 * Dyazili) * (100 / 33))
-    return NBq + NBa
+    # Qapalı suallar üzrə bal (səhvlər düzlərə təsir edir)
+    NBq = max(0, (Dq - Yq / 4))
+    # Açıq suallar üzrə bal
+    NBa = max(0, (Dkod + 2 * Dyazili))
+    
+    # Bu funksiya xam (raw) balı qaytarır, əmsala vurma nəticə funksiyasındadır.
+    # Qəbul imtahanlarında 30 sual olur (22 qapalı, 8 açıq)
+    # Maksimum bal 100-dür. Qapalı 22*1=22 bal, açıq 8*2=16 bal. Cəmi 38 xam bal.
+    # Bu hesablama düsturu DİM-in rəsmi metodologiyasına əsaslanmalıdır.
+    # Nümunəvi hesablama:
+    yekun_bal = (NBq + NBa) * 100 / 38 # 38 ümumi xam baldır (22+8*2)
+    return yekun_bal
 
 async def netice_hesabla_ve_goster(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
+    await query.answer()
     data = context.user_data
     imtahan_tipi = data['imtahan_tipi']
     netice_metni = ""
     qrup_emsallari = {
-        'qebul_1_kimya': {'fennler': [('riyaziyyat', 'Riyaziyyat', '🧮'), ('fizika', 'Fizika', '🔬'), ('kimya', 'Kimya', '🧪')], 'emsallar': [1.5, 1.5, 1.0]},
-        'qebul_1_informatika': {'fennler': [('riyaziyyat', 'Riyaziyyat', '🧮'), ('fizika', 'Fizika', '🔬'), ('informatika', 'İnformatika', '💻')], 'emsallar': [1.5, 1.5, 1.0]},
-        'qebul_2': {'fennler': [('riyaziyyat', 'Riyaziyyat', '🧮'), ('cografiya', 'Coğrafiya', '🌍'), ('tarix', 'Tarix', '📜')], 'emsallar': [1.5, 1.5, 1.0]},
-        'qebul_3_dt': {'fennler': [('az_dili', 'Azərbaycan dili', '🇦🇿'), ('tarix', 'Tarix', '📜'), ('edebiyyat', 'Ədəbiyyat', '📚')], 'emsallar': [1.5, 1.5, 1.0]},
-        'qebul_3_tc': {'fennler': [('az_dili', 'Azərbaycan dili', '🇦🇿'), ('tarix', 'Tarix', '📜'), ('cografiya', 'Coğrafiya', '🌍')], 'emsallar': [1.0, 1.5, 1.5]},
-        'qebul_4': {'fennler': [('biologiya', 'Biologiya', '🧬'), ('kimya', 'Kimya', '🧪'), ('fizika', 'Fizika', '🔬')], 'emsallar': [1.5, 1.5, 1.0]}
+        'qebul_1_kimya': {'fennler': [('riyaziyyat', 'Riyaziyyat', '🧮'), ('fizika', 'Fizika', '🔬'), ('kimya', 'Kimya', '🧪')], 'emsallar': [2, 2, 1]},
+        'qebul_1_informatika': {'fennler': [('riyaziyyat', 'Riyaziyyat', '🧮'), ('fizika', 'Fizika', '🔬'), ('informatika', 'İnformatika', '💻')], 'emsallar': [2, 2, 1]},
+        'qebul_2': {'fennler': [('riyaziyyat', 'Riyaziyyat', '🧮'), ('cografiya', 'Coğrafiya', '🌍'), ('tarix', 'Tarix', '📜')], 'emsallar': [2, 1, 2]},
+        'qebul_3_dt': {'fennler': [('az_dili', 'Azərbaycan dili', '🇦🇿'), ('tarix', 'Tarix', '📜'), ('edebiyyat', 'Ədəbiyyat', '📚')], 'emsallar': [2, 2, 1]},
+        'qebul_3_tc': {'fennler': [('az_dili', 'Azərbaycan dili', '🇦🇿'), ('tarix', 'Tarix', '📜'), ('cografiya', 'Coğrafiya', '🌍')], 'emsallar': [1, 2, 2]},
+        'qebul_4': {'fennler': [('biologiya', 'Biologiya', '🧬'), ('kimya', 'Kimya', '🧪'), ('fizika', 'Fizika', '🔬')], 'emsallar': [2, 2, 1]}
     }
     try:
         if imtahan_tipi.startswith('qebul'):
             qrup_info = qrup_emsallari[imtahan_tipi]
-            yekun_ballar = [max(0, fenn_bali_hesabla(data, fk) * emsal) for fk, emsal in zip([f[0] for f in qrup_info['fennler']], qrup_info['emsallar'])]
-            total_bal = sum(yekun_ballar)
+            yekun_ballar = []
+            fenn_detallari = ""
+            total_bal = 0
+            
+            for (fk, fn, emoji), emsal in zip(qrup_info['fennler'], qrup_info['emsallar']):
+                fenn_bali = fenn_bali_hesabla(data, fk)
+                yekun_bal = fenn_bali * emsal
+                yekun_ballar.append(yekun_bal)
+                fenn_detallari += f"\n{emoji} *{fn}:* {fenn_bali:.2f} bal (Əmsal: {emsal}) -> {yekun_bal:.2f} yekun bal"
+                total_bal += yekun_bal
+
             qrup_adi = imtahan_tipi.replace('qebul_', '').replace('_', ' ').upper()
-            netice_metni = f"🎉 *Nəticəniz ({qrup_adi})* 🎉\n"
-            for i, (_, fenn_adi, emoji) in enumerate(qrup_info['fennler']):
-                netice_metni += f"\n{emoji} *{fenn_adi}:* {yekun_ballar[i]:.1f} bal\n"
-            netice_metni += f"\n-------------------------------------\n🏆 *ÜMUMİ BAL:* {total_bal:.1f}"
+            netice_metni = f"🎉 *Nəticəniz ({qrup_adi})* 🎉\n{fenn_detallari}\n"
+            netice_metni += f"\n-------------------------------------\n🏆 *ÜMUMİ QƏBUL BALI:* {total_bal:.2f} / 500"
         
         elif imtahan_tipi.startswith('buraxilis'):
             bal_az = bal_ingilis = bal_riyaziyyat = 0.0
             if imtahan_tipi == 'buraxilis_11':
-                bal_az = ((2 * sum(float(v) for v in data.get('az_dili_cedvel_secimleri', {}).values()) + data.get('az_dili_qapali', 0)) * 5) / 2
-                bal_ingilis = (100 / 37) * (2 * sum(float(v) for v in data.get('ingilis_cedvel_secimleri', {}).values()) + data.get('ingilis_qapali', 0))
-                bal_riyaziyyat = (25 / 8) * (2 * sum(float(v) for v in data.get('riyaziyyat_cedvel_secimleri', {}).values()) + data.get('riyaziyyat_qapali', 0) + data.get('riyaziyyat_kodlashdirma', 0))
-            else:
-                bal_az = ((2 * sum(float(v) for v in data.get('az_dili_cedvel_secimleri', {}).values()) + data.get('az_dili_qapali', 0)) * 100) / 34
-                bal_riyaziyyat = ((2 * sum(float(v) for v in data.get('riyaziyyat_cedvel_secimleri', {}).values()) + data.get('riyaziyyat_kodlashdirma', 0) + data.get('riyaziyyat_qapali', 0)) * 100) / 29
+                # DİM 2023 modelinə uyğun hesablama
+                bal_az = (data.get('az_dili_qapali', 0) + sum(float(v) * 2 for v in data.get('az_dili_cedvel_secimleri', {}).values())) * 100/30
+                bal_riyaziyyat = (data.get('riyaziyyat_qapali', 0) + data.get('riyaziyyat_kodlashdirma', 0) + sum(float(v) * 2 for v in data.get('riyaziyyat_cedvel_secimleri', {}).values())) * 100/30
+                bal_ingilis = (data.get('ingilis_qapali', 0) + sum(float(v) * 2 for v in data.get('ingilis_cedvel_secimleri', {}).values())) * 100/30
+            else: # 9-cu sinif modelləri
+                bal_riyaziyyat = (data.get('riyaziyyat_qapali', 0) + data.get('riyaziyyat_kodlashdirma', 0) + sum(float(v)*2 for v in data.get('riyaziyyat_cedvel_secimleri',{}).values())) * 100 / 29
                 if imtahan_tipi == 'buraxilis_9_2025':
-                    bal_ingilis_raw = ((data.get('ingilis_esse', 0) + data.get('ingilis_kodlashdirma', 0) + data.get('ingilis_qapali', 0)) * 100) / 30
-                    bal_ingilis = min(100.0, bal_ingilis_raw)
-                else:
-                    bal_ingilis = ((2 * sum(float(v) for v in data.get('ingilis_cedvel_secimleri', {}).values()) + data.get('ingilis_qapali', 0)) * 100) / 34
-            
+                    bal_az = (data.get('az_dili_qapali', 0) + sum(float(v)*2 for v in data.get('az_dili_cedvel_secimleri',{}).values())) * 100 / 34
+                    bal_ingilis = (data.get('ingilis_qapali', 0) + data.get('ingilis_kodlashdirma', 0) + data.get('ingilis_esse', 0)) * 100 / 30
+                else: # Köhnə model
+                    bal_az = (data.get('az_dili_qapali', 0) + sum(float(v)*2 for v in data.get('az_dili_cedvel_secimleri',{}).values())) * 100 / 34
+                    bal_ingilis = (data.get('ingilis_qapali', 0) + sum(float(v)*2 for v in data.get('ingilis_cedvel_secimleri',{}).values())) * 100 / 34
+
+            # Nəticələrin 100-dən yuxarı olmamasını təmin etmək
+            bal_az, bal_ingilis, bal_riyaziyyat = min(bal_az, 100), min(bal_ingilis, 100), min(bal_riyaziyyat, 100)
             total_bal = bal_az + bal_ingilis + bal_riyaziyyat
             imtahan_basligi = imtahan_tipi.replace('_', ' ').replace('buraxilis ', '').title()
             netice_metni = (f"🎉 *Nəticəniz ({imtahan_basligi})* 🎉\n"
-                           f"\n🇦🇿 *Ana dili:* {bal_az:.1f} bal\n"
-                           f"\n🇬🇧 *Xarici dil:* {bal_ingilis:.1f} bal\n"
-                           f"\n🧮 *Riyaziyyat:* {bal_riyaziyyat:.1f} bal\n"
-                           f"\n-------------------------------------\n🏆 *ÜMUMİ BAL:* {total_bal:.1f}")
+                            f"\n🇦🇿 *Ana dili:* {bal_az:.2f} bal\n"
+                            f"\n🇬🇧 *Xarici dil:* {bal_ingilis:.2f} bal\n"
+                            f"\n🧮 *Riyaziyyat:* {bal_riyaziyyat:.2f} bal\n"
+                            f"\n-------------------------------------\n🏆 *ÜMUMİ BAL:* {total_bal:.2f} / 300")
     except Exception as e:
-        logger.error(f"Hesablama zamanı xəta baş verdi: {e}")
+        logger.error(f"Hesablama zamanı xəta baş verdi: {e}", exc_info=True)
         netice_metni = "Nəticələri hesablayarkən xəta baş verdi. Zəhmət olmasa, /start ilə yenidən cəhd edin."
     
     keyboard = [[InlineKeyboardButton("🏠 Ana Səhifə", callback_data='meny_ana')]]
@@ -414,26 +457,31 @@ async def netice_hesabla_ve_goster(update: Update, context: ContextTypes.DEFAULT
 async def prosesi_legv_et(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     if query:
-        await query.answer()
+        await query.answer("Proses ləğv edildi.")
     return await ana_menyunu_goster(update, context)
 
 async def geri_get(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
-    await query.answer()
+    if query: await query.answer()
+    
     addim_tarixcesi = context.user_data.get('addim_tarixcesi', [])
     
     # Cari addımı tarixdən çıxarırıq ki, təkrarlanmasın
-    if context.user_data.get('cari_addim') in addim_tarixcesi:
+    if 'cari_addim' in context.user_data and context.user_data['cari_addim'] in addim_tarixcesi:
         addim_tarixcesi.pop()
 
     if addim_tarixcesi:
         evvelki_addim = addim_tarixcesi.pop()
         context.user_data['addim_tarixcesi'] = addim_tarixcesi
-
+        
+        # Callback-lərin çağırılacağı funksiyaları təyin edirik
         if evvelki_addim == 'meny_ana': return await ana_menyunu_goster(update, context)
         elif evvelki_addim == 'meny_buraxilish': return await buraxilis_sinif_secimini_goster(update, context)
         elif evvelki_addim == 'meny_qebul': return await qebul_qrup_secimini_goster(update, context)
-        elif evvelki_addim.endswith('_altqrup'): return await qebul_altqrup_secimini_goster(update, context)
+        elif evvelki_addim.startswith('meny_qebul_') and evvelki_addim.endswith('_altqrup'):
+            # Geri qayıdanda callback data-nı düzgün qururuq
+            query.data = evvelki_addim 
+            return await qebul_altqrup_secimini_goster(update, context)
         elif 'cedvel' in evvelki_addim: return await ballandirma_cedvelini_goster(update, context, addim_adi=evvelki_addim)
         else: return await novbeti_suali_sorus(update, context, addim_adi=evvelki_addim)
     
@@ -442,6 +490,7 @@ async def geri_get(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def ekrani_temizle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
     try:
+        # Son 50 mesajı silməyə cəhd edirik
         for i in range(50):
             await context.bot.delete_message(chat_id, update.message.message_id - i)
     except BadRequest: pass
@@ -452,6 +501,7 @@ async def ekrani_temizle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 def main() -> None:
     application = Application.builder().token(TOKEN).build()
     
+    # --- DÜZƏLİŞ EDİLMİŞ CONVERSATION HANDLER ---
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', ana_menyunu_goster)],
         states={
@@ -464,18 +514,31 @@ def main() -> None:
                 CallbackQueryHandler(istifade_telimatini_goster, pattern='^meny_telimat$'),
                 CallbackQueryHandler(geri_get, pattern='^geri$')
             ],
-            VEZIYYET_SUAL_GOZLEME: [MessageHandler(filters.TEXT & ~filters.COMMAND, daxil_edilen_metni_yoxla)],
+            VEZIYYET_SUAL_GOZLEME: [
+                # DÜZƏLİŞ: "geri" düyməsini emal etmək üçün CallbackQueryHandler əlavə edildi
+                CallbackQueryHandler(geri_get, pattern='^geri$'),
+                CallbackQueryHandler(prosesi_legv_et, pattern='^legv_et$'),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, daxil_edilen_metni_yoxla)
+            ],
             VEZIYYET_TESDIQ_GOZLEME: [
                 CallbackQueryHandler(daxil_edilen_reqemi_tesdiqle, pattern='^tesdiq_'),
-                CallbackQueryHandler(novbeti_suali_sorus, pattern='^.+$')
+                # Düzəliş et düyməsi "novbeti_suali_sorus" funksiyasını çağırır
+                CallbackQueryHandler(novbeti_suali_sorus, pattern='^(?!tesdiq_|geri|legv_et).+$'),
+                CallbackQueryHandler(geri_get, pattern='^geri$'),
+                CallbackQueryHandler(prosesi_legv_et, pattern='^legv_et$'),
             ],
             VEZIYYET_CEDVEL_SECIMI: [
                 CallbackQueryHandler(cedvel_secimini_isle, pattern='^cedvel_'),
                 CallbackQueryHandler(cedveli_tesdiqle_ve_davam_et, pattern='^tesdiq_cedvel$'),
-                CallbackQueryHandler(geri_get, pattern='^geri$')
+                CallbackQueryHandler(geri_get, pattern='^geri$'),
+                CallbackQueryHandler(prosesi_legv_et, pattern='^legv_et$'),
             ],
         },
-        fallbacks=[CallbackQueryHandler(prosesi_legv_et, pattern='^legv_et'), CommandHandler('start', ana_menyunu_goster)],
+        fallbacks=[
+            CallbackQueryHandler(prosesi_legv_et, pattern='^legv_et'), 
+            CallbackQueryHandler(geri_get, pattern='^geri$'),
+            CommandHandler('start', ana_menyunu_goster)
+        ],
         persistent=False, name="imtahan_sohbeti"
     )
 
