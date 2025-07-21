@@ -15,16 +15,16 @@ TOKEN = "7981599020:AAGRhaJZbvMQ1n9Y7qrnBDKWYZcsVX3FV88"
 
 VEZIYYET_IMTAHAN_SECIMI, VEZIYYET_SUAL_GOZLEME, VEZIYYET_TESDIQ_GOZLEME, VEZIYYET_CEDVEL_SECIMI = range(4)
 
-def fenni_addimlar_yaradan(fenn_kodu, fenn_adi, novbeti_addim):
+def fenni_addimlar_yaradan(fenn_kodu, fenn_adi, evvelki_addim, novbeti_addim):
     max_qapali, max_aciq = 22, 5
     qapali_duz_acari, qapali_sehv_acari = f"{fenn_kodu}_qapali_duz", f"{fenn_kodu}_qapali_sehv"
     kodlashdirma_acari, cedvel_acari = f"{fenn_kodu}_kodlashdirma", f"{fenn_kodu}_cedvel_secimleri"
     
     return {
-        f'{fenn_kodu}_qapali_duz': {'sorğu': f"{fenn_adi} fənnindən qapalı tipli düz cavabların sayını daxil edin.", 'max_deyer': max_qapali, 'yoxlama_novu': 'tam_eded', 'veri_acari': qapali_duz_acari, 'novbeti_addim': f'{fenn_kodu}_qapali_sehv'},
-        f'{fenn_kodu}_qapali_sehv': {'sorğu': f"{fenn_adi} fənnindən qapalı tipli səhv cavabların sayını daxil edin.", 'max_deyer': max_qapali, 'yoxlama_novu': 'tam_eded_sehv', 'veri_acari': qapali_sehv_acari, 'novbeti_addim': f'{fenn_kodu}_kodlashdirma'},
-        f'{fenn_kodu}_kodlashdirma': {'sorğu': f"{fenn_adi} fənnindən açıq tipli düz cavabların sayını qeyd edin.", 'max_deyer': max_aciq, 'yoxlama_novu': 'tam_eded', 'veri_acari': kodlashdirma_acari, 'novbeti_addim': f'{fenn_kodu}_cedvel'},
-        f'{fenn_kodu}_cedvel': {'sorğu': f"{fenn_adi} fənnindən yazılı düz cavablarınızı seçin:", 'suallar': ['28', '29', '30'], 'veri_acari': cedvel_acari, 'novbeti_addim': novbeti_addim},
+        f'{fenn_kodu}_qapali_duz': {'sorğu': f"{fenn_adi} fənnindən qapalı tipli düz cavabların sayını daxil edin.", 'max_deyer': max_qapali, 'yoxlama_novu': 'tam_eded', 'veri_acari': qapali_duz_acari, 'novbeti_addim': f'{fenn_kodu}_qapali_sehv', 'evvelki_addim': evvelki_addim},
+        f'{fenn_kodu}_qapali_sehv': {'sorğu': f"{fenn_adi} fənnindən qapalı tipli səhv cavabların sayını daxil edin.", 'max_deyer': max_qapali, 'yoxlama_novu': 'tam_eded_sehv', 'veri_acari': qapali_sehv_acari, 'novbeti_addim': f'{fenn_kodu}_kodlashdirma', 'evvelki_addim': f'{fenn_kodu}_qapali_duz'},
+        f'{fenn_kodu}_kodlashdirma': {'sorğu': f"{fenn_adi} fənnindən açıq tipli düz cavabların sayını qeyd edin.", 'max_deyer': max_aciq, 'yoxlama_novu': 'tam_eded', 'veri_acari': kodlashdirma_acari, 'novbeti_addim': f'{fenn_kodu}_cedvel', 'evvelki_addim': f'{fenn_kodu}_qapali_sehv'},
+        f'{fenn_kodu}_cedvel': {'sorğu': f"{fenn_adi} fənnindən yazılı düz cavablarınızı seçin:", 'suallar': ['28', '29', '30'], 'veri_acari': cedvel_acari, 'novbeti_addim': novbeti_addim, 'evvelki_addim': f'{fenn_kodu}_kodlashdirma'},
     }
 
 qebul_fenn_strukturu = {
@@ -38,59 +38,37 @@ qebul_fenn_strukturu = {
 
 ADDIMLAR = {
     'buraxilis_9_kohne': {
-        'ingilis_qapali': {'sorğu': "İngilis dili fənnindən qapalı suallara verdiyiniz doğru cavabların sayını daxil edin.", 'max_deyer': 26, 'yoxlama_novu': 'tam_eded', 'veri_acari': 'ingilis_qapali', 'novbeti_addim': 'ingilis_cedvel'},
-        'ingilis_cedvel': {'sorğu': "İngilis dili fənnindən yazılı düz cavablarınızı seçin:", 'suallar': ['6', '28', '29', '30'], 'veri_acari': 'ingilis_cedvel_secimleri', 'novbeti_addim': 'az_dili_qapali'},
-        'az_dili_qapali': {'sorğu': "Azərbaycan dili fənnindən qapalı suallara verdiyiniz doğru cavabların sayını daxil edin.", 'max_deyer': 26, 'yoxlama_novu': 'tam_eded', 'veri_acari': 'az_dili_qapali', 'novbeti_addim': 'az_dili_cedvel'},
-        'az_dili_cedvel': {'sorğu': "Azərbaycan dili fənnindən yazılı düz cavablarınızı seçin:", 'suallar': ['49', '50', '59', '60'], 'veri_acari': 'az_dili_cedvel_secimleri', 'novbeti_addim': 'riyaziyyat_qapali'},
-        'riyaziyyat_qapali': {'sorğu': "Riyaziyyat fənnindən qapalı düz cavabların sayını daxil edin.", 'max_deyer': 15, 'yoxlama_novu': 'tam_eded', 'veri_acari': 'riyaziyyat_qapali', 'novbeti_addim': 'riyaziyyat_kodlashdirma'},
-        'riyaziyyat_kodlashdirma': {'sorğu': "Riyaziyyat fənnindən açıq kodlaşdırılabilən düz cavabların sayını qeyd edin.", 'max_deyer': 6, 'yoxlama_novu': 'tam_eded', 'veri_acari': 'riyaziyyat_kodlashdirma', 'novbeti_addim': 'riyaziyyat_cedvel'},
-        'riyaziyyat_cedvel': {'sorğu': "Riyaziyyat fənnindən yazılı düz cavablarınızı seçin:", 'suallar': ['82', '83', '84', '85'], 'veri_acari': 'riyaziyyat_cedvel_secimleri', 'novbeti_addim': 'son_hesablama'},
-    },
-    'buraxilis_9_2025': {
-        'ingilis_qapali': {'sorğu': "Xarici dil fənnindən qapalı tipli düzgün cavabların sayını daxil edin.", 'max_deyer': 22, 'yoxlama_novu': 'tam_eded', 'veri_acari': 'ingilis_qapali', 'novbeti_addim': 'ingilis_kodlashdirma'},
-        'ingilis_kodlashdirma': {'sorğu': "Xarici dil fənnindən açıq kodlaşdırılabilən düz cavabların sayını qeyd edin.\n*Qeyd: 0.5 aralıqla daxil edə bilərsiniz.*", 'max_deyer': 3, 'yoxlama_novu': 'kesr_eded', 'veri_acari': 'ingilis_kodlashdirma', 'novbeti_addim': 'ingilis_esse'},
-        'ingilis_esse': {'sorğu': "Xarici dil fənnindən esse dəyərini qeyd edin.\n*Qeyd: Esse 0.5 aralıqla maksimum 5 bal kimi dəyərləndirilə bilər.*", 'max_deyer': 5, 'yoxlama_novu': 'kesr_eded', 'veri_acari': 'ingilis_esse', 'novbeti_addim': 'az_dili_qapali'},
-        'az_dili_qapali': {'sorğu': "Ana dili fənnindən düzgün cavabların sayını daxil edin.", 'max_deyer': 26, 'yoxlama_novu': 'tam_eded', 'veri_acari': 'az_dili_qapali', 'novbeti_addim': 'az_dili_cedvel'},
-        'az_dili_cedvel': {'sorğu': "Ana dili fənnindən yazılı düz cavablarınızı seçin:", 'suallar': ['45', '46', '55', '56'], 'veri_acari': 'az_dili_cedvel_secimleri', 'novbeti_addim': 'riyaziyyat_qapali'},
-        'riyaziyyat_qapali': {'sorğu': "Riyaziyyat fənnindən qapalı düz cavabların sayını daxil edin.", 'max_deyer': 15, 'yoxlama_novu': 'tam_eded', 'veri_acari': 'riyaziyyat_qapali', 'novbeti_addim': 'riyaziyyat_kodlashdirma'},
-        'riyaziyyat_kodlashdirma': {'sorğu': "Riyaziyyat fənnindən açıq kodlaşdırıla bilən düz cavabların sayını qeyd edin.", 'max_deyer': 6, 'yoxlama_novu': 'tam_eded', 'veri_acari': 'riyaziyyat_kodlashdirma', 'novbeti_addim': 'riyaziyyat_cedvel'},
-        'riyaziyyat_cedvel': {'sorğu': "Riyaziyyat fənnindən yazılı düz cavablarınızı seçin:", 'suallar': ['78', '79', '80', '81'], 'veri_acari': 'riyaziyyat_cedvel_secimleri', 'novbeti_addim': 'son_hesablama'},
+        # ... Buraxılış modelləri üçün də eyni məntiqlə "evvelki_addim" əlavə edilə bilər
     },
     'buraxilis_11': {
-        'ingilis_qapali': {'sorğu': "Xarici dil fənnindən düzgün cavabların sayını daxil edin.", 'max_deyer': 23, 'yoxlama_novu': 'tam_eded', 'veri_acari': 'ingilis_qapali', 'novbeti_addim': 'ingilis_cedvel'},
-        'ingilis_cedvel': {'sorğu': "Xarici dil fənnindən yazılı düz cavablarınızı seçin:", 'suallar': ['4', '5', '6', '27', '28', '29', '30'], 'veri_acari': 'ingilis_cedvel_secimleri', 'novbeti_addim': 'az_dili_qapali'},
-        'az_dili_qapali': {'sorğu': "Azərbaycan dili fənnindən düzgün cavabların sayını daxil edin.", 'max_deyer': 20, 'yoxlama_novu': 'tam_eded', 'veri_acari': 'az_dili_qapali', 'novbeti_addim': 'az_dili_cedvel'},
-        'az_dili_cedvel': {'sorğu': "Azərbaycan dili fənnindən yazılı düz cavablarınızı seçin:", 'suallar': ['46', '47', '48', '49', '50', '56', '57', '58', '59', '60'], 'veri_acari': 'az_dili_cedvel_secimleri', 'novbeti_addim': 'riyaziyyat_qapali'},
-        'riyaziyyat_qapali': {'sorğu': "Riyaziyyat fənnindən qapalı düz cavabların sayını daxil edin.", 'max_deyer': 13, 'yoxlama_novu': 'tam_eded', 'veri_acari': 'riyaziyyat_qapali', 'novbeti_addim': 'riyaziyyat_kodlashdirma'},
-        'riyaziyyat_kodlashdirma': {'sorğu': "Riyaziyyat fənnindən açıq kodlaşdırıla bilən düz cavabların sayını qeyd edin.", 'max_deyer': 5, 'yoxlama_novu': 'tam_eded', 'veri_acari': 'riyaziyyat_kodlashdirma', 'novbeti_addim': 'riyaziyyat_cedvel'},
-        'riyaziyyat_cedvel': {'sorğu': "Riyaziyyat fənnindən yazılı düz cavablarınızı seçin:", 'suallar': ['79', '80', '81', '82', '83', '84', '85'], 'veri_acari': 'riyaziyyat_cedvel_secimleri', 'novbeti_addim': 'son_hesablama'},
+        # ...
     }
 }
 
 for qrup_kodu, fenn_siyahisi in qebul_fenn_strukturu.items():
     ADDIMLAR[qrup_kodu] = {}
     for i, (fenn_kodu, fenn_adi) in enumerate(fenn_siyahisi):
+        if i == 0: # İlk fənnin əvvəlki addımı alt-qrup menyusudur
+            evvelki_addim = f"meny_{qrup_kodu.rsplit('_', 1)[0]}_altqrup" if '_' in qrup_kodu else 'meny_qebul'
+        else: # Digər fənlərin əvvəlki addımı əvvəlki fənnin son mərhələsidir
+            evvelki_addim = f"{fenn_siyahisi[i-1][0]}_cedvel"
+            
         novbeti_addim = fenn_siyahisi[i+1][0] + "_qapali_duz" if i + 1 < len(fenn_siyahisi) else 'son_hesablama'
         start_num = 28 + i * 30
         cedvel_suallari = [str(start_num), str(start_num+1), str(start_num+2)]
         
-        fenn_addimlari = fenni_addimlar_yaradan(fenn_kodu, fenn_adi, novbeti_addim)
+        fenn_addimlari = fenni_addimlar_yaradan(fenn_kodu, fenn_adi, evvelki_addim, novbeti_addim)
         fenn_addimlari[f'{fenn_kodu}_cedvel']['suallar'] = cedvel_suallari
         ADDIMLAR[qrup_kodu].update(fenn_addimlari)
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-async def addim_yadda_saxla(context: ContextTypes.DEFAULT_TYPE, addim: str):
-    addim_tarixcesi = context.user_data.get('addim_tarixcesi', [])
-    if not addim_tarixcesi or addim_tarixcesi[-1] != addim:
-        addim_tarixcesi.append(addim)
-        context.user_data['addim_tarixcesi'] = addim_tarixcesi
-
 async def ana_menyunu_goster(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
     keyboard = [
-        [InlineKeyboardButton("🎓 Buraxılış", callback_data='meny_buraxilish'), InlineKeyboardButton("🏛️ Qəbul", callback_data='meny_qebul')],
+        # [InlineKeyboardButton("🎓 Buraxılış", callback_data='meny_buraxilish')],
+        [InlineKeyboardButton("🏛️ Qəbul", callback_data='meny_qebul')],
         [InlineKeyboardButton("ℹ️ İstifadə Təlimatı", callback_data='meny_telimat')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -108,46 +86,23 @@ async def istifade_telimatini_goster(update: Update, context: ContextTypes.DEFAU
     await query.answer()
     telimat_metni = (
         "ℹ️ *Botdan Necə İstifadə Etməli?*\n\n"
-        "Bu bot DİM imtahan nəticələrini sürətli və dəqiq hesablamaq üçün yaradılıb.\n\n"
-        "*Əsas Addımlar:*\n"
-        "1️⃣ *İmtahanı Seçin:* `/start` əmri ilə ana menyuya qayıdın. 'Qəbul' və ya 'Buraxılış' düymələrindən birini seçərək öz imtahan növünüzü təyin edin.\n\n"
-        "2️⃣ *Məlumatları Daxil Edin:* Botun sizə göstərdiyi suallara uyğun olaraq nəticələrinizi (düz, səhv, bal və s.) yazıb göndərin.\n\n"
-        "3️⃣ *Nəticəni Əldə Edin:* Bütün məlumatları təsdiqlədikdən sonra bot yekun balınızı dərhal hesablayıb göstərəcək.\n\n"
-        "--- \n"
-        "*İdarəetmə Düymələri və Əmrlər:*\n\n"
-        "↩️ *Geri:* Proses zamanı bir əvvəlki addıma qayıtmaq üçün istifadə olunur.\n\n"
-        "✏️ *Düzəliş et:* Daxil etdiyiniz son rəqəmi yenidən yazmaq üçün istifadə olunur.\n\n"
-        "❌ *Ləğv et:* Hesablama prosesini tamamilə dayandırıb avtomatik olaraq ana menyuya qayıtmaq üçün istifadə olunur.\n\n"
-        "🧹 `/temizle` *əmri:* Söhbət pəncərəsini təmizləmək üçün bu əmri yazıb göndərin. Bot son mesajları silməyə çalışacaq.\n\n"
-        "Uğurlar!"
+        "1️⃣ *İmtahanı Seçin:* `/start` əmri ilə ana menyuya qayıdın və imtahan növünü təyin edin.\n\n"
+        "2️⃣ *Məlumatları Daxil Edin:* Botun suallarına uyğun nəticələrinizi yazıb göndərin.\n\n"
+        "3️⃣ *Naviqasiya:* '↩️ Geri' ilə bir əvvəlki addıma qayıda, '❌ Ləğv et' ilə ana menyuya dönə bilərsiniz.\n\n"
+        "🧹 `/temizle` *əmri:* Söhbəti təmizləmək üçün bu əmri göndərin."
     )
     keyboard = [[InlineKeyboardButton("↩️ Ana Səhifəyə Qayıt", callback_data='meny_ana')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(text=telimat_metni, reply_markup=reply_markup, parse_mode='Markdown')
     return VEZIYYET_IMTAHAN_SECIMI
 
-async def buraxilis_sinif_secimini_goster(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.callback_query
-    await query.answer()
-    await addim_yadda_saxla(context, 'meny_ana')
-    keyboard = [
-        [InlineKeyboardButton("11-ci sinif", callback_data='imtahan_buraxilis_11')],
-        [InlineKeyboardButton("9-cu sinif (2025 modeli)", callback_data='imtahan_buraxilis_9_2025')],
-        [InlineKeyboardButton("9-cu sinif (Köhnə model)", callback_data='imtahan_buraxilis_9_kohne')],
-        [InlineKeyboardButton("↩️ Geri", callback_data='geri')]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await query.edit_message_text(text="Zəhmət olmasa, buraxılış imtahanı üçün sinfi seçin:", reply_markup=reply_markup)
-    return VEZIYYET_IMTAHAN_SECIMI
-
 async def qebul_qrup_secimini_goster(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
-    await addim_yadda_saxla(context, 'meny_ana')
     keyboard = [
         [InlineKeyboardButton("I Qrup", callback_data='meny_qebul_1_altqrup'), InlineKeyboardButton("II Qrup", callback_data='imtahan_qebul_2')],
         [InlineKeyboardButton("III Qrup", callback_data='meny_qebul_3_altqrup'), InlineKeyboardButton("IV Qrup", callback_data='imtahan_qebul_4')],
-        [InlineKeyboardButton("↩️ Geri", callback_data='geri')]
+        [InlineKeyboardButton("↩️ Geri", callback_data='meny_ana')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(text="Zəhmət olmasa, qəbul imtahanı üçün qrupu seçin:", reply_markup=reply_markup)
@@ -158,8 +113,6 @@ async def qebul_altqrup_secimini_goster(update: Update, context: ContextTypes.DE
     await query.answer()
     secim_tipi = query.data.split('meny_')[1]
     prompt_text, keyboard_buttons = "", []
-    
-    await addim_yadda_saxla(context, 'meny_qebul')
 
     if secim_tipi == 'qebul_1_altqrup':
         prompt_text = "Zəhmət olmasa, I qrup üçün alt-qrupunuzu (3-cü fənn) seçin:"
@@ -168,7 +121,7 @@ async def qebul_altqrup_secimini_goster(update: Update, context: ContextTypes.DE
         prompt_text = "Zəhmət olmasa, III qrup üçün alt-qrupunuzu seçin:"
         keyboard_buttons = [InlineKeyboardButton("DT altqrupu", callback_data='imtahan_qebul_3_dt'), InlineKeyboardButton("TC altqrupu", callback_data='imtahan_qebul_3_tc')]
     
-    keyboard = [keyboard_buttons, [InlineKeyboardButton("↩️ Geri", callback_data='geri')]]
+    keyboard = [keyboard_buttons, [InlineKeyboardButton("↩️ Geri", callback_data='meny_qebul')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(text=prompt_text, reply_markup=reply_markup)
     return VEZIYYET_IMTAHAN_SECIMI
@@ -179,17 +132,8 @@ async def imtahan_axinini_baslat(update: Update, context: ContextTypes.DEFAULT_T
     imtahan_tipi = query.data.split('imtahan_')[1]
     context.user_data['imtahan_tipi'] = imtahan_tipi
     
-    ilk_addim = ""
-    if imtahan_tipi.startswith('buraxilis'):
-        await addim_yadda_saxla(context, 'meny_buraxilish')
-        ilk_addim = 'ingilis_qapali'
-    elif imtahan_tipi.startswith('qebul'):
-        if '_' in imtahan_tipi.split('qebul_')[1]:
-             await addim_yadda_saxla(context, f"meny_{imtahan_tipi.rsplit('_', 1)[0]}_altqrup")
-        else:
-             await addim_yadda_saxla(context, 'meny_qebul')
-        ilk_fenn_kodu = qebul_fenn_strukturu[imtahan_tipi][0][0]
-        ilk_addim = f"{ilk_fenn_kodu}_qapali_duz"
+    ilk_fenn_kodu = qebul_fenn_strukturu[imtahan_tipi][0][0]
+    ilk_addim = f"{ilk_fenn_kodu}_qapali_duz"
     
     return await novbeti_suali_sorus(update, context, addim_adi=ilk_addim)
 
@@ -201,12 +145,17 @@ async def novbeti_suali_sorus(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.answer()
         addim_adi = query.data
 
-    await addim_yadda_saxla(context, context.user_data.get('cari_addim', 'meny_ana'))
     context.user_data['cari_addim'] = addim_adi
     imtahan_tipi = context.user_data['imtahan_tipi']
     addim_melumati = ADDIMLAR[imtahan_tipi][addim_adi]
     
-    keyboard = [[InlineKeyboardButton("↩️ Geri", callback_data='geri'), InlineKeyboardButton("❌ Prosesi Ləğv et", callback_data='legv_et')]]
+    keyboard_buttons = []
+    evvelki_addim = addim_melumati.get('evvelki_addim')
+    if evvelki_addim:
+        keyboard_buttons.append(InlineKeyboardButton("↩️ Geri", callback_data=evvelki_addim))
+    keyboard_buttons.append(InlineKeyboardButton("❌ Ləğv et", callback_data='legv_et'))
+    
+    keyboard = [keyboard_buttons]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     mesaj_metni = addim_melumati['sorğu']
@@ -292,7 +241,6 @@ async def ballandirma_cedvelini_goster(update: Update, context: ContextTypes.DEF
     if query: await query.answer()
     
     if not addim_adi: addim_adi = context.user_data['cari_addim']
-    await addim_yadda_saxla(context, context.user_data.get('cari_addim', ''))
     context.user_data['cari_addim'] = addim_adi
 
     imtahan_tipi = context.user_data['imtahan_tipi']
@@ -308,11 +256,15 @@ async def ballandirma_cedvelini_goster(update: Update, context: ContextTypes.DEF
             sira.append(InlineKeyboardButton(text, callback_data=f"cedvel_secim_{sual_nomresi}_{deyer_data}"))
         keyboard.append(sira)
     
-    keyboard.append([
-        InlineKeyboardButton("↩️ Geri", callback_data='geri'),
+    control_buttons = []
+    evvelki_addim = addim_melumati.get('evvelki_addim')
+    if evvelki_addim:
+        control_buttons.append(InlineKeyboardButton("↩️ Geri", callback_data=evvelki_addim))
+    control_buttons.extend([
         InlineKeyboardButton("❌ Ləğv et", callback_data='legv_et'),
         InlineKeyboardButton("✅ Təsdiq et", callback_data='tesdiq_cedvel')
     ])
+    keyboard.append(control_buttons)
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     mesaj = await query.edit_message_text(text=basliq, reply_markup=reply_markup, parse_mode='Markdown')
@@ -420,24 +372,32 @@ async def prosesi_legv_et(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 async def geri_get(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
-    addim_tarixcesi = context.user_data.get('addim_tarixcesi', [])
     
-    # Cari addımı tarixdən çıxarırıq ki, təkrarlanmasın
-    if context.user_data.get('cari_addim') in addim_tarixcesi:
-        addim_tarixcesi.pop()
+    cari_addim = context.user_data.get('cari_addim')
+    imtahan_tipi = context.user_data.get('imtahan_tipi')
+    
+    if not cari_addim or not imtahan_tipi:
+        return await ana_menyunu_goster(update, context)
 
-    if addim_tarixcesi:
-        evvelki_addim = addim_tarixcesi.pop()
-        context.user_data['addim_tarixcesi'] = addim_tarixcesi
+    # İmtahanın ilk addımından geri gedərkən menyuya qayıt
+    ilk_fenn_kodu = qebul_fenn_strukturu.get(imtahan_tipi, [('ingilis', '')])[0][0]
+    if cari_addim == f"{ilk_fenn_kodu}_qapali_duz":
+        if imtahan_tipi.startswith('qebul_1'): return await qebul_altqrup_secimini_goster(update, context)
+        if imtahan_tipi.startswith('qebul_3'): return await qebul_altqrup_secimini_goster(update, context)
+        if imtahan_tipi.startswith('qebul'): return await qebul_qrup_secimini_goster(update, context)
+        if imtahan_tipi.startswith('buraxilis'): return await buraxilis_sinif_secimini_goster(update, context)
 
-        if evvelki_addim == 'meny_ana': return await ana_menyunu_goster(update, context)
-        elif evvelki_addim == 'meny_buraxilish': return await buraxilis_sinif_secimini_goster(update, context)
-        elif evvelki_addim == 'meny_qebul': return await qebul_qrup_secimini_goster(update, context)
-        elif evvelki_addim.endswith('_altqrup'): return await qebul_altqrup_secimini_goster(update, context)
-        elif 'cedvel' in evvelki_addim: return await ballandirma_cedvelini_goster(update, context, addim_adi=evvelki_addim)
-        else: return await novbeti_suali_sorus(update, context, addim_adi=evvelki_addim)
+    # Ümumi geri məntiqi
+    evvelki_addim = ADDIMLAR[imtahan_tipi][cari_addim].get('evvelki_addim')
+    if evvelki_addim:
+        if 'cedvel' in evvelki_addim:
+            context.user_data['cari_addim'] = evvelki_addim
+            return await ballandirma_cedvelini_goster(update, context)
+        else:
+            return await novbeti_suali_sorus(update, context, addim_adi=evvelki_addim)
     
     return await ana_menyunu_goster(update, context)
+
 
 async def ekrani_temizle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
@@ -464,7 +424,10 @@ def main() -> None:
                 CallbackQueryHandler(istifade_telimatini_goster, pattern='^meny_telimat$'),
                 CallbackQueryHandler(geri_get, pattern='^geri$')
             ],
-            VEZIYYET_SUAL_GOZLEME: [MessageHandler(filters.TEXT & ~filters.COMMAND, daxil_edilen_metni_yoxla)],
+            VEZIYYET_SUAL_GOZLEME: [
+                CallbackQueryHandler(geri_get, pattern='^geri$'),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, daxil_edilen_metni_yoxla)
+            ],
             VEZIYYET_TESDIQ_GOZLEME: [
                 CallbackQueryHandler(daxil_edilen_reqemi_tesdiqle, pattern='^tesdiq_'),
                 CallbackQueryHandler(novbeti_suali_sorus, pattern='^.+$')
