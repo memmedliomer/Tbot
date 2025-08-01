@@ -11,25 +11,24 @@ from telegram.ext import (
 )
 from telegram.error import BadRequest
 
+# --- BOT TOKEN ---
+TOKEN = "7981599020:AAGRhaJZbvMQ1n9Y7qrnBDKWYZcsVX3FV88" 
 
-TOKEN = "7981599020:AAGRhaJZbvMQ1n9Y7qrnBDKWYZcsVX3FV88"
-
-
+# --- Conversation States ---
 VEZIYYET_IMTAHAN_SECIMI, VEZIYYET_SUAL_GOZLEME, VEZIYYET_TESDIQ_GOZLEME, VEZIYYET_CEDVEL_SECIMI = range(4)
 
+# --- Dynamic Step Generation for Admission Exams ---
 def fenni_addimlar_yaradan(fenn_kodu, fenn_adi, novbeti_addim):
-
     max_qapali, max_aciq = 22, 5
     qapali_duz_acari, qapali_sehv_acari = f"{fenn_kodu}_qapali_duz", f"{fenn_kodu}_qapali_sehv"
     kodlashdirma_acari, cedvel_acari = f"{fenn_kodu}_kodlashdirma", f"{fenn_kodu}_cedvel_secimleri"
-
+    
     return {
         f'{fenn_kodu}_qapali_duz': {'sorğu': f"{fenn_adi} fənnindən qapalı tipli düz cavabların sayını daxil edin.", 'max_deyer': max_qapali, 'yoxlama_novu': 'tam_eded', 'veri_acari': qapali_duz_acari, 'novbeti_addim': f'{fenn_kodu}_qapali_sehv'},
         f'{fenn_kodu}_qapali_sehv': {'sorğu': f"{fenn_adi} fənnindən qapalı tipli səhv cavabların sayını daxil edin.", 'max_deyer': max_qapali, 'yoxlama_novu': 'tam_eded_sehv', 'veri_acari': qapali_sehv_acari, 'novbeti_addim': f'{fenn_kodu}_kodlashdirma'},
         f'{fenn_kodu}_kodlashdirma': {'sorğu': f"{fenn_adi} fənnindən açıq tipli düz cavabların sayını qeyd edin.", 'max_deyer': max_aciq, 'yoxlama_novu': 'tam_eded', 'veri_acari': kodlashdirma_acari, 'novbeti_addim': f'{fenn_kodu}_cedvel'},
         f'{fenn_kodu}_cedvel': {'sorğu': f"{fenn_adi} fənnindən yazılı düz cavablarınızı seçin:", 'suallar': ['28', '29', '30'], 'veri_acari': cedvel_acari, 'novbeti_addim': novbeti_addim},
     }
-
 
 qebul_fenn_strukturu = {
     'qebul_1_kimya': [('riyaziyyat', 'Riyaziyyat'), ('fizika', 'Fizika'), ('kimya', 'Kimya')],
@@ -82,19 +81,19 @@ for qrup_kodu, fenn_siyahisi in qebul_fenn_strukturu.items():
         fenn_addimlari[f'{fenn_kodu}_cedvel']['suallar'] = cedvel_suallari
         ADDIMLAR[qrup_kodu].update(fenn_addimlari)
 
-
+# --- Logging ---
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# --- Helper Functions ---
 async def addim_yadda_saxla(context: ContextTypes.DEFAULT_TYPE, addim: str):
-
     addim_tarixcesi = context.user_data.get('addim_tarixcesi', [])
     if not addim_tarixcesi or addim_tarixcesi[-1] != addim:
         addim_tarixcesi.append(addim)
         context.user_data['addim_tarixcesi'] = addim_tarixcesi
 
+# --- Core Bot Functions ---
 async def ana_menyunu_goster(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-
     context.user_data.clear()
     keyboard = [
         [InlineKeyboardButton("🎓 Buraxılış", callback_data='meny_buraxilish'), InlineKeyboardButton("🏛️ Qəbul", callback_data='meny_qebul')],
@@ -102,23 +101,29 @@ async def ana_menyunu_goster(update: Update, context: ContextTypes.DEFAULT_TYPE)
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     mesaj_metni = "Salam! 👋 DİM imtahan nəticələrini hesablamaq üçün imtahan növünü seçin:"
-
+    
     if update.callback_query:
         await update.callback_query.answer()
         await update.callback_query.edit_message_text(text=mesaj_metni, reply_markup=reply_markup)
     else:
-        await update.message.reply_text(text=mesaj_metni, reply_markup=reply_markup)
+        # Delete the user's message (e.g., '/start' or 'clean')
+        if update.message:
+            try:
+                await update.message.delete()
+            except BadRequest:
+                logger.info("Silinəcək mesaj tapılmadı.")
+        await update.effective_chat.send_message(text=mesaj_metni, reply_markup=reply_markup)
+        
     return VEZIYYET_IMTAHAN_SECIMI
 
 async def istifade_telimatini_goster(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-
     query = update.callback_query
     await query.answer()
     telimat_metni = (
         "ℹ️ *Botdan Necə İstifadə Etməli?*\n\n"
         "Bu bot DİM imtahan nəticələrini sürətli və dəqiq hesablamaq üçün yaradılıb.\n\n"
         "*Əsas Addımlar:*\n"
-        "1️⃣ *İmtahanı Seçin:* `/start` əmri ilə ana menyuya qayıdın. 'Qəbul' və ya 'Buraxılış' düymələrindən birini seçərək öz imtahan növünüzü təyin edin.\n\n"
+        "1️⃣ *İmtahanı Seçin:* `/start` və ya `clean` əmri ilə ana menyuya qayıdın. 'Qəbul' və ya 'Buraxılış' düymələrindən birini seçərək öz imtahan növünüzü təyin edin.\n\n"
         "2️⃣ *Məlumatları Daxil Edin:* Botun sizə göstərdiyi suallara uyğun olaraq nəticələrinizi (düz, səhv, bal və s.) yazıb göndərin.\n\n"
         "3️⃣ *Nəticəni Əldə Edin:* Bütün məlumatları təsdiqlədikdən sonra bot yekun balınızı dərhal hesablayıb göstərəcək.\n\n"
         "--- \n"
@@ -126,7 +131,7 @@ async def istifade_telimatini_goster(update: Update, context: ContextTypes.DEFAU
         "↩️ *Geri:* Proses zamanı bir əvvəlki addıma qayıtmaq üçün istifadə olunur.\n\n"
         "✏️ *Düzəliş et:* Daxil etdiyiniz son rəqəmi yenidən yazmaq üçün istifadə olunur.\n\n"
         "❌ *Ləğv et:* Hesablama prosesini tamamilə dayandırıb avtomatik olaraq ana menyuya qayıtmaq üçün istifadə olunur.\n\n"
-        "🧹 `/temizle` *əmri:* Söhbət pəncərəsini təmizləmək üçün bu əmri yazıb göndərin. Bot son mesajları silməyə çalışacaq.\n\n"
+        "🧹 `clean` *əmri:* Söhbət pəncərəsini təmizləyib botu yenidən başlamaq üçün bu sözü yazıb göndərin.\n\n"
         "Uğurlar!"
     )
     keyboard = [[InlineKeyboardButton("↩️ Ana Səhifəyə Qayıt", callback_data='meny_ana')]]
@@ -135,7 +140,6 @@ async def istifade_telimatini_goster(update: Update, context: ContextTypes.DEFAU
     return VEZIYYET_IMTAHAN_SECIMI
 
 async def buraxilis_sinif_secimini_goster(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-
     query = update.callback_query
     await query.answer()
     await addim_yadda_saxla(context, 'meny_ana')
@@ -150,7 +154,6 @@ async def buraxilis_sinif_secimini_goster(update: Update, context: ContextTypes.
     return VEZIYYET_IMTAHAN_SECIMI
 
 async def qebul_qrup_secimini_goster(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-
     query = update.callback_query
     await query.answer()
     await addim_yadda_saxla(context, 'meny_ana')
@@ -164,12 +167,11 @@ async def qebul_qrup_secimini_goster(update: Update, context: ContextTypes.DEFAU
     return VEZIYYET_IMTAHAN_SECIMI
 
 async def qebul_altqrup_secimini_goster(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-
     query = update.callback_query
     await query.answer()
     secim_tipi = query.data.split('meny_')[1]
     prompt_text, keyboard_buttons = "", []
-
+    
     await addim_yadda_saxla(context, 'meny_qebul')
 
     if secim_tipi == 'qebul_1_altqrup':
@@ -178,19 +180,18 @@ async def qebul_altqrup_secimini_goster(update: Update, context: ContextTypes.DE
     elif secim_tipi == 'qebul_3_altqrup':
         prompt_text = "Zəhmət olmasa, III qrup üçün alt-qrupunuzu seçin:"
         keyboard_buttons = [InlineKeyboardButton("DT altqrupu", callback_data='imtahan_qebul_3_dt'), InlineKeyboardButton("TC altqrupu", callback_data='imtahan_qebul_3_tc')]
-
+    
     keyboard = [keyboard_buttons, [InlineKeyboardButton("↩️ Geri", callback_data='geri')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(text=prompt_text, reply_markup=reply_markup)
     return VEZIYYET_IMTAHAN_SECIMI
 
 async def imtahan_axinini_baslat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-
     query = update.callback_query
     await query.answer()
     imtahan_tipi = query.data.split('imtahan_')[1]
     context.user_data['imtahan_tipi'] = imtahan_tipi
-
+    
     ilk_addim = ""
     if imtahan_tipi.startswith('buraxilis'):
         await addim_yadda_saxla(context, 'meny_buraxilish')
@@ -202,11 +203,10 @@ async def imtahan_axinini_baslat(update: Update, context: ContextTypes.DEFAULT_T
              await addim_yadda_saxla(context, 'meny_qebul')
         ilk_fenn_kodu = qebul_fenn_strukturu[imtahan_tipi][0][0]
         ilk_addim = f"{ilk_fenn_kodu}_qapali_duz"
-
+    
     return await novbeti_suali_sorus(update, context, addim_adi=ilk_addim)
 
 async def novbeti_suali_sorus(update: Update, context: ContextTypes.DEFAULT_TYPE, addim_adi: str | None = None) -> int:
-
     query = update.callback_query
     mesaj = None
 
@@ -218,10 +218,10 @@ async def novbeti_suali_sorus(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data['cari_addim'] = addim_adi
     imtahan_tipi = context.user_data['imtahan_tipi']
     addim_melumati = ADDIMLAR[imtahan_tipi][addim_adi]
-
+    
     keyboard = [[InlineKeyboardButton("↩️ Geri", callback_data='geri'), InlineKeyboardButton("❌ Prosesi Ləğv et", callback_data='legv_et')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
-
+    
     mesaj_metni = addim_melumati['sorğu']
     if addim_melumati.get('yoxlama_novu') != 'tam_eded_sehv':
          mesaj_metni += f"\n(Maksimum dəyər: {addim_melumati['max_deyer']})"
@@ -230,23 +230,14 @@ async def novbeti_suali_sorus(update: Update, context: ContextTypes.DEFAULT_TYPE
         mesaj = await query.edit_message_text(text=mesaj_metni, reply_markup=reply_markup, parse_mode='Markdown')
     else:
         mesaj = await context.bot.send_message(chat_id=update.effective_chat.id, text=mesaj_metni, reply_markup=reply_markup, parse_mode='Markdown')
-
-
-
-
-
-
-
-
-
+    
     context.user_data['son_bot_mesaji_id'] = mesaj.message_id
     return VEZIYYET_SUAL_GOZLEME
 
 async def daxil_edilen_metni_yoxla(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-
     chat_id = update.effective_chat.id
     son_bot_mesaji_id = context.user_data.pop('son_bot_mesaji_id', None)
-
+    
     try:
         await update.message.delete()
         if son_bot_mesaji_id:
@@ -260,9 +251,9 @@ async def daxil_edilen_metni_yoxla(update: Update, context: ContextTypes.DEFAULT
     addim_melumati = ADDIMLAR[imtahan_tipi][addim_adi]
     max_deyer = addim_melumati['max_deyer']
     yoxlama_novu = addim_melumati['yoxlama_novu']
-
+    
     is_valid, temp_deyer, error_msg = False, None, "Daxil etdiyiniz məlumat düzgün deyil."
-
+    
     try:
         if yoxlama_novu == 'tam_eded_sehv':
             sehv_sayi = int(daxil_edilen)
@@ -281,11 +272,11 @@ async def daxil_edilen_metni_yoxla(update: Update, context: ContextTypes.DEFAULT
 
     if not is_valid:
         error_mesaj = await context.bot.send_message(chat_id=chat_id, text=error_msg)
-        context.user_data['son_bot_mesaji_id'] = error_mesaj.message_id
-        return VEZIYYET_SUAL_GOZLEME
-
+        # Re-ask the question after error
+        return await novbeti_suali_sorus(update, context, addim_adi=addim_adi)
+    
     context.user_data['temp_deyer'] = temp_deyer
-
+    
     keyboard = [
         [InlineKeyboardButton("❌ Ləğv et", callback_data='legv_et')],
         [InlineKeyboardButton("✏️ Düzəliş et", callback_data=addim_adi), InlineKeyboardButton("✅ Təsdiq et", callback_data=f"tesdiq_{addim_adi}")]
@@ -296,69 +287,59 @@ async def daxil_edilen_metni_yoxla(update: Update, context: ContextTypes.DEFAULT
     return VEZIYYET_TESDIQ_GOZLEME
 
 async def daxil_edilen_reqemi_tesdiqle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-
     query = update.callback_query
     await query.answer()
-
-
-
-
-
-
-
     addim_adi = query.data.replace('tesdiq_', '')
     imtahan_tipi = context.user_data['imtahan_tipi']
     addim_melumati = ADDIMLAR[imtahan_tipi][addim_adi]
     context.user_data[addim_melumati['veri_acari']] = context.user_data.pop('temp_deyer')
     novbeti_addim_adi = addim_melumati['novbeti_addim']
-
+    
     if 'cedvel' in novbeti_addim_adi:
         return await ballandirma_cedvelini_goster(update, context, addim_adi=novbeti_addim_adi)
-
-
+    elif novbeti_addim_adi == 'son_hesablama':
+        return await netice_hesabla_ve_goster(update, context)
     else:
         return await novbeti_suali_sorus(update, context, addim_adi=novbeti_addim_adi)
 
-
 async def ballandirma_cedvelini_goster(update: Update, context: ContextTypes.DEFAULT_TYPE, addim_adi: str | None = None) -> int:
-
     query = update.callback_query
     if query: await query.answer()
-
+    
     if not addim_adi: addim_adi = context.user_data['cari_addim']
-
-
     await addim_yadda_saxla(context, context.user_data.get('cari_addim', ''))
     context.user_data['cari_addim'] = addim_adi
 
     imtahan_tipi = context.user_data['imtahan_tipi']
     addim_melumati = ADDIMLAR[imtahan_tipi][addim_adi]
     secimler = context.user_data.get(addim_melumati['veri_acari'], {})
-
+    
     keyboard, basliq = [], f"{addim_melumati['sorğu']}\n\n*Qeyd:* Səhv seçimi sualın nömrəsinə toxunaraq sıfırlaya bilərsiniz."
-
+    
     for sual_nomresi in addim_melumati['suallar']:
         sira = [InlineKeyboardButton(f"{sual_nomresi}. 👉", callback_data=f"cedvel_sifirla_{sual_nomresi}")]
         for deyer_metn, deyer_data in [('0', '0'), ('1/3', '0.3333'), ('1/2', '0.5'), ('2/3', '0.6667'), ('1', '1')]:
             text = f"✅ {deyer_metn}" if secimler.get(sual_nomresi) == deyer_data else deyer_metn
             sira.append(InlineKeyboardButton(text, callback_data=f"cedvel_secim_{sual_nomresi}_{deyer_data}"))
         keyboard.append(sira)
-
+    
     keyboard.append([
         InlineKeyboardButton("↩️ Geri", callback_data='geri'),
         InlineKeyboardButton("❌ Ləğv et", callback_data='legv_et'),
         InlineKeyboardButton("✅ Təsdiq et", callback_data='tesdiq_cedvel')
     ])
     reply_markup = InlineKeyboardMarkup(keyboard)
-
-    mesaj = await query.edit_message_text(text=basliq, reply_markup=reply_markup, parse_mode='Markdown')
+    
+    # Check if we should edit a message or send a new one
+    if query and query.message:
+        mesaj = await query.edit_message_text(text=basliq, reply_markup=reply_markup, parse_mode='Markdown')
+    else:
+        mesaj = await update.effective_chat.send_message(text=basliq, reply_markup=reply_markup, parse_mode='Markdown')
+        
     context.user_data['son_bot_mesaji_id'] = mesaj.message_id
-
-
     return VEZIYYET_CEDVEL_SECIMI
 
 async def cedvel_secimini_isle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-
     query = update.callback_query
     await query.answer()
     addim_adi = context.user_data['cari_addim']
@@ -368,14 +349,13 @@ async def cedvel_secimini_isle(update: Update, context: ContextTypes.DEFAULT_TYP
     hisseler = query.data.split('_')
     hereket, sual_nomresi = hisseler[1], hisseler[2]
     secimler = context.user_data.get(veri_acari, {})
-
+    
     if hereket == 'secim': secimler[sual_nomresi] = hisseler[3]
     elif hereket == 'sifirla' and sual_nomresi in secimler: del secimler[sual_nomresi]
     context.user_data[veri_acari] = secimler
     return await ballandirma_cedvelini_goster(update, context)
-
+    
 async def cedveli_tesdiqle_ve_davam_et(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-
     query = update.callback_query
     await query.answer()
     cari_addim_adi = context.user_data['cari_addim']
@@ -386,8 +366,8 @@ async def cedveli_tesdiqle_ve_davam_et(update: Update, context: ContextTypes.DEF
     if novbeti_addim_adi == 'son_hesablama': return await netice_hesabla_ve_goster(update, context)
     else: return await novbeti_suali_sorus(update, context, addim_adi=novbeti_addim_adi)
 
+# --- Calculation Functions ---
 def fenn_bali_hesabla(data, fenn_kodu):
-
     Dq = data.get(f'{fenn_kodu}_qapali_duz', 0)
     Yq = data.get(f'{fenn_kodu}_qapali_sehv', 0)
     Dkod = data.get(f'{fenn_kodu}_kodlashdirma', 0)
@@ -397,9 +377,7 @@ def fenn_bali_hesabla(data, fenn_kodu):
     return NBq + NBa
 
 async def netice_hesabla_ve_goster(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-
     query = update.callback_query
-
     data = context.user_data
     imtahan_tipi = data['imtahan_tipi']
     netice_metni = ""
@@ -416,9 +394,6 @@ async def netice_hesabla_ve_goster(update: Update, context: ContextTypes.DEFAULT
             qrup_info = qrup_emsallari[imtahan_tipi]
             yekun_ballar = [max(0, fenn_bali_hesabla(data, fk) * emsal) for fk, emsal in zip([f[0] for f in qrup_info['fennler']], qrup_info['emsallar'])]
             total_bal = sum(yekun_ballar)
-
-
-
             qrup_adi = imtahan_tipi.replace('qebul_', '').replace('_', ' ').upper()
             netice_metni = f"🎉 *Nəticəniz ({qrup_adi})* 🎉\n"
             for i, (_, fenn_adi, emoji) in enumerate(qrup_info['fennler']):
@@ -434,51 +409,42 @@ async def netice_hesabla_ve_goster(update: Update, context: ContextTypes.DEFAULT
             else:
                 bal_az = ((2 * sum(float(v) for v in data.get('az_dili_cedvel_secimleri', {}).values()) + data.get('az_dili_qapali', 0)) * 100) / 34
                 bal_riyaziyyat = ((2 * sum(float(v) for v in data.get('riyaziyyat_cedvel_secimleri', {}).values()) + data.get('riyaziyyat_kodlashdirma', 0) + data.get('riyaziyyat_qapali', 0)) * 100) / 29
-
-
-
-
-
                 if imtahan_tipi == 'buraxilis_9_2025':
                     bal_ingilis_raw = ((data.get('ingilis_esse', 0) + data.get('ingilis_kodlashdirma', 0) + data.get('ingilis_qapali', 0)) * 100) / 30
                     bal_ingilis = min(100.0, bal_ingilis_raw)
                 else:
                     bal_ingilis = ((2 * sum(float(v) for v in data.get('ingilis_cedvel_secimleri', {}).values()) + data.get('ingilis_qapali', 0)) * 100) / 34
-
-
+            
             total_bal = bal_az + bal_ingilis + bal_riyaziyyat
             imtahan_basligi = imtahan_tipi.replace('_', ' ').replace('buraxilis ', '').title()
             netice_metni = (f"🎉 *Nəticəniz ({imtahan_basligi})* 🎉\n"
-                           f"\n🇦🇿 *Ana dili:* {bal_az:.1f} bal\n"
-                           f"\n🇬🇧 *Xarici dil:* {bal_ingilis:.1f} bal\n"
-                           f"\n🧮 *Riyaziyyat:* {bal_riyaziyyat:.1f} bal\n"
-                           f"\n-------------------------------------\n🏆 *ÜMUMİ BAL:* {total_bal:.1f}")
+                            f"\n🇦🇿 *Ana dili:* {bal_az:.1f} bal\n"
+                            f"\n🇬🇧 *Xarici dil:* {bal_ingilis:.1f} bal\n"
+                            f"\n🧮 *Riyaziyyat:* {bal_riyaziyyat:.1f} bal\n"
+                            f"\n-------------------------------------\n🏆 *ÜMUMİ BAL:* {total_bal:.1f}")
     except Exception as e:
         logger.error(f"Hesablama zamanı xəta baş verdi: {e}")
         netice_metni = "Nəticələri hesablayarkən xəta baş verdi. Zəhmət olmasa, /start ilə yenidən cəhd edin."
-
+    
     keyboard = [[InlineKeyboardButton("🏠 Ana Səhifə", callback_data='meny_ana')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(text=netice_metni, parse_mode='Markdown', reply_markup=reply_markup)
-
     context.user_data.clear()
     return VEZIYYET_IMTAHAN_SECIMI
 
+# --- Navigation and Command Functions ---
 async def prosesi_legv_et(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-
     query = update.callback_query
     if query:
         await query.answer()
     return await ana_menyunu_goster(update, context)
 
-
 async def geri_get(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-
     query = update.callback_query
     await query.answer()
     addim_tarixcesi = context.user_data.get('addim_tarixcesi', [])
-
-    # Cari addımı tarixdən çıxarırıq ki, təkrarlanmasın
+    
+    # Current step is popped to avoid repetition
     if context.user_data.get('cari_addim') in addim_tarixcesi:
         addim_tarixcesi.pop()
 
@@ -492,43 +458,41 @@ async def geri_get(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         elif evvelki_addim.endswith('_altqrup'): return await qebul_altqrup_secimini_goster(update, context)
         elif 'cedvel' in evvelki_addim: return await ballandirma_cedvelini_goster(update, context, addim_adi=evvelki_addim)
         else: return await novbeti_suali_sorus(update, context, addim_adi=evvelki_addim)
-
+    
     return await ana_menyunu_goster(update, context)
 
-async def ekrani_temizle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-
-    chat_id = update.effective_chat.id
-
+async def lazimsiz_mesaji_sil(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Deletes any text message sent in a state that doesn't expect one."""
     try:
+        await update.message.delete()
+    except BadRequest:
+        logger.info("Silinəcək lazımsız mesaj tapılmadı.")
 
-        for i in range(50):
-            await context.bot.delete_message(chat_id, update.message.message_id - i)
-    except BadRequest: pass
-    except Exception as e: logger.error(f"Mesajları silərkən xəta: {e}")
+async def temizle_ve_baslat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Clears the screen and restarts the bot with the main menu."""
+    chat_id = update.effective_chat.id
+    try:
+        # Delete a batch of messages to clear the screen
+        for i in range(update.message.message_id, update.message.message_id - 50, -1):
+            if i > 0:
+                await context.bot.delete_message(chat_id, i)
+    except BadRequest:
+        pass # Ignore errors if messages are already deleted or don't exist
+    except Exception as e:
+        logger.error(f"Mesajları silərkən xəta: {e}")
+    
+    # Show the main menu, effectively restarting the bot
+    return await ana_menyunu_goster(update, context)
 
-
-
-    await context.bot.send_message(chat_id, "Ekran təmizləndi. Yeni hesablama üçün /start yazın.")
-
-
-
-
-
-
-
-
-
-
+# --- Main Bot Setup ---
 def main() -> None:
-
     application = Application.builder().token(TOKEN).build()
-
+    
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', ana_menyunu_goster)],
-
-
-
-
+        entry_points=[
+            CommandHandler('start', ana_menyunu_goster),
+            MessageHandler(filters.Regex(r'(?i)^clean$'), temizle_ve_baslat) # 'clean' can also start the conversation
+        ],
         states={
             VEZIYYET_IMTAHAN_SECIMI: [
                 CallbackQueryHandler(buraxilis_sinif_secimini_goster, pattern='^meny_buraxilish$'),
@@ -537,38 +501,39 @@ def main() -> None:
                 CallbackQueryHandler(imtahan_axinini_baslat, pattern='^imtahan_'),
                 CallbackQueryHandler(ana_menyunu_goster, pattern='^meny_ana$'),
                 CallbackQueryHandler(istifade_telimatini_goster, pattern='^meny_telimat$'),
-                CallbackQueryHandler(geri_get, pattern='^geri$')
-
-
-
-
-
-
+                CallbackQueryHandler(geri_get, pattern='^geri$'),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, lazimsiz_mesaji_sil), # Delete unwanted text
             ],
-            VEZIYYET_SUAL_GOZLEME: [MessageHandler(filters.TEXT & ~filters.COMMAND, daxil_edilen_metni_yoxla)],
+            VEZIYYET_SUAL_GOZLEME: [
+                # FIX 1: Add handlers for buttons on this screen
+                CallbackQueryHandler(geri_get, pattern='^geri$'),
+                CallbackQueryHandler(prosesi_legv_et, pattern='^legv_et$'),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, daxil_edilen_metni_yoxla),
+            ],
             VEZIYYET_TESDIQ_GOZLEME: [
-
                 CallbackQueryHandler(daxil_edilen_reqemi_tesdiqle, pattern='^tesdiq_'),
-                CallbackQueryHandler(novbeti_suali_sorus, pattern='^.+$')
-
+                # FIX 2: Make sure legv_et is handled by fallback by not using a greedy pattern
+                CallbackQueryHandler(novbeti_suali_sorus, pattern=f'^(?!tesdiq_|legv_et|geri).*$'),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, lazimsiz_mesaji_sil), # Delete unwanted text
             ],
             VEZIYYET_CEDVEL_SECIMI: [
                 CallbackQueryHandler(cedvel_secimini_isle, pattern='^cedvel_'),
                 CallbackQueryHandler(cedveli_tesdiqle_ve_davam_et, pattern='^tesdiq_cedvel$'),
-                CallbackQueryHandler(geri_get, pattern='^geri$')
-
+                CallbackQueryHandler(geri_get, pattern='^geri$'),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, lazimsiz_mesaji_sil), # Delete unwanted text
             ],
         },
-        fallbacks=[CallbackQueryHandler(prosesi_legv_et, pattern='^legv_et'), CommandHandler('start', ana_menyunu_goster)],
+        fallbacks=[
+            CallbackQueryHandler(prosesi_legv_et, pattern='^legv_et$'),
+            MessageHandler(filters.Regex(r'(?i)^clean$'), temizle_ve_baslat),
+            CommandHandler('start', ana_menyunu_goster)
+        ],
         persistent=False, name="imtahan_sohbeti"
-
-
-
-
     )
 
     application.add_handler(conv_handler)
-    application.add_handler(CommandHandler('temizle', ekrani_temizle))
+    # A general handler for 'clean' in case it's sent outside of a conversation
+    application.add_handler(MessageHandler(filters.Regex(r'(?i)^clean$') & ~filters.COMMAND, temizle_ve_baslat))
 
     print("Bot işə düşdü...")
     application.run_polling()
