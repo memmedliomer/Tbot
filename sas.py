@@ -106,12 +106,8 @@ async def ana_menyunu_goster(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.callback_query.answer()
         await update.callback_query.edit_message_text(text=mesaj_metni, reply_markup=reply_markup)
     else:
-        # Delete the user's message (e.g., '/start' or 'clean')
-        if update.message:
-            try:
-                await update.message.delete()
-            except BadRequest:
-                logger.info("Silinəcək mesaj tapılmadı.")
+        # 'clean' və ya '/start' mesajı artıq silindiyi üçün burada onu təkrar silməyə ehtiyac yoxdur.
+        # Sadəcə yeni mesaj göndəririk.
         await update.effective_chat.send_message(text=mesaj_metni, reply_markup=reply_markup)
         
     return VEZIYYET_IMTAHAN_SECIMI
@@ -271,7 +267,7 @@ async def daxil_edilen_metni_yoxla(update: Update, context: ContextTypes.DEFAULT
     except (ValueError, IndexError): is_valid = False
 
     if not is_valid:
-        error_mesaj = await context.bot.send_message(chat_id=chat_id, text=error_msg)
+        await context.bot.send_message(chat_id=chat_id, text=error_msg)
         # Re-ask the question after error
         return await novbeti_suali_sorus(update, context, addim_adi=addim_adi)
     
@@ -330,7 +326,6 @@ async def ballandirma_cedvelini_goster(update: Update, context: ContextTypes.DEF
     ])
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    # Check if we should edit a message or send a new one
     if query and query.message:
         mesaj = await query.edit_message_text(text=basliq, reply_markup=reply_markup, parse_mode='Markdown')
     else:
@@ -444,7 +439,6 @@ async def geri_get(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await query.answer()
     addim_tarixcesi = context.user_data.get('addim_tarixcesi', [])
     
-    # Current step is popped to avoid repetition
     if context.user_data.get('cari_addim') in addim_tarixcesi:
         addim_tarixcesi.pop()
 
@@ -462,26 +456,34 @@ async def geri_get(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return await ana_menyunu_goster(update, context)
 
 async def lazimsiz_mesaji_sil(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Deletes any text message sent in a state that doesn't expect one."""
     try:
         await update.message.delete()
     except BadRequest:
         logger.info("Silinəcək lazımsız mesaj tapılmadı.")
 
 async def temizle_ve_baslat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Clears the screen and restarts the bot with the main menu."""
+    """Söhbət tarixçəsini təmizləyir və botu yenidən başladır."""
     chat_id = update.effective_chat.id
-    try:
-        # Delete a batch of messages to clear the screen
-        for i in range(update.message.message_id, update.message.message_id - 50, -1):
-            if i > 0:
-                await context.bot.delete_message(chat_id, i)
-    except BadRequest:
-        pass # Ignore errors if messages are already deleted or don't exist
-    except Exception as e:
-        logger.error(f"Mesajları silərkən xəta: {e}")
+    current_message_id = update.message.message_id
     
-    # Show the main menu, effectively restarting the bot
+    logger.info(f"'{chat_id}' üçün ekran təmizləmə prosesi başlanır...")
+
+    for i in range(50): # Son 50 mesajı silməyə cəhd edir
+        message_id_to_delete = current_message_id - i
+        
+        if message_id_to_delete <= 0:
+            break
+        
+        try:
+            await context.bot.delete_message(chat_id, message_id_to_delete)
+        except BadRequest:
+            logger.warning(f"Mesaj {message_id_to_delete} silinə bilmədi (çox köhnə və ya mövcud deyil).")
+        except Exception as e:
+            logger.error(f"Mesaj silinərkən gözlənilməz xəta: {e}")
+            break
+
+    logger.info("Ekran təmizləndi. Ana menyu göstərilir.")
+    
     return await ana_menyunu_goster(update, context)
 
 # --- Main Bot Setup ---
@@ -491,7 +493,7 @@ def main() -> None:
     conv_handler = ConversationHandler(
         entry_points=[
             CommandHandler('start', ana_menyunu_goster),
-            MessageHandler(filters.Regex(r'(?i)^clean$'), temizle_ve_baslat) # 'clean' can also start the conversation
+            MessageHandler(filters.Regex(r'(?i)^clean$'), temizle_ve_baslat)
         ],
         states={
             VEZIYYET_IMTAHAN_SECIMI: [
@@ -502,25 +504,23 @@ def main() -> None:
                 CallbackQueryHandler(ana_menyunu_goster, pattern='^meny_ana$'),
                 CallbackQueryHandler(istifade_telimatini_goster, pattern='^meny_telimat$'),
                 CallbackQueryHandler(geri_get, pattern='^geri$'),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, lazimsiz_mesaji_sil), # Delete unwanted text
+                MessageHandler(filters.TEXT & ~filters.COMMAND, lazimsiz_mesaji_sil),
             ],
             VEZIYYET_SUAL_GOZLEME: [
-                # FIX 1: Add handlers for buttons on this screen
                 CallbackQueryHandler(geri_get, pattern='^geri$'),
                 CallbackQueryHandler(prosesi_legv_et, pattern='^legv_et$'),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, daxil_edilen_metni_yoxla),
             ],
             VEZIYYET_TESDIQ_GOZLEME: [
                 CallbackQueryHandler(daxil_edilen_reqemi_tesdiqle, pattern='^tesdiq_'),
-                # FIX 2: Make sure legv_et is handled by fallback by not using a greedy pattern
                 CallbackQueryHandler(novbeti_suali_sorus, pattern=f'^(?!tesdiq_|legv_et|geri).*$'),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, lazimsiz_mesaji_sil), # Delete unwanted text
+                MessageHandler(filters.TEXT & ~filters.COMMAND, lazimsiz_mesaji_sil),
             ],
             VEZIYYET_CEDVEL_SECIMI: [
                 CallbackQueryHandler(cedvel_secimini_isle, pattern='^cedvel_'),
                 CallbackQueryHandler(cedveli_tesdiqle_ve_davam_et, pattern='^tesdiq_cedvel$'),
                 CallbackQueryHandler(geri_get, pattern='^geri$'),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, lazimsiz_mesaji_sil), # Delete unwanted text
+                MessageHandler(filters.TEXT & ~filters.COMMAND, lazimsiz_mesaji_sil),
             ],
         },
         fallbacks=[
@@ -532,9 +532,8 @@ def main() -> None:
     )
 
     application.add_handler(conv_handler)
-    # A general handler for 'clean' in case it's sent outside of a conversation
-    application.add_handler(MessageHandler(filters.Regex(r'(?i)^clean$') & ~filters.COMMAND, temizle_ve_baslat))
-
+    # Bu handler artıq ConversationHandler-in içində olduğu üçün ayrıca əlavə etməyə ehtiyac yoxdur.
+    
     print("Bot işə düşdü...")
     application.run_polling()
 
