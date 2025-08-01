@@ -520,8 +520,8 @@ def main() -> None:
     conv_handler = ConversationHandler(
         entry_points=[
             CommandHandler('start', ana_menyunu_goster),
-            # YENİLƏMƏ: "clean" sözü də söhbəti yenidən başlatmaq üçün giriş nöqtəsidir
-            MessageHandler(filters.Regex(r'^(?i)clean$'), clean_and_start)
+            # DÜZƏLİŞ: (?i) bayrağı regex ifadəsinin tam başına çəkildi
+            MessageHandler(filters.Regex(r'(?i)^clean$'), clean_and_start)
         ],
         states={
             VEZIYYET_IMTAHAN_SECIMI: [
