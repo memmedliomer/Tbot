@@ -106,8 +106,6 @@ async def ana_menyunu_goster(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.callback_query.answer()
         await update.callback_query.edit_message_text(text=mesaj_metni, reply_markup=reply_markup)
     else:
-        # 'clean' və ya '/start' mesajı artıq silindiyi üçün burada onu təkrar silməyə ehtiyac yoxdur.
-        # Sadəcə yeni mesaj göndəririk.
         await update.effective_chat.send_message(text=mesaj_metni, reply_markup=reply_markup)
         
     return VEZIYYET_IMTAHAN_SECIMI
@@ -119,7 +117,7 @@ async def istifade_telimatini_goster(update: Update, context: ContextTypes.DEFAU
         "ℹ️ *Botdan Necə İstifadə Etməli?*\n\n"
         "Bu bot DİM imtahan nəticələrini sürətli və dəqiq hesablamaq üçün yaradılıb.\n\n"
         "*Əsas Addımlar:*\n"
-        "1️⃣ *İmtahanı Seçin:* `/start` və ya `clean` əmri ilə ana menyuya qayıdın. 'Qəbul' və ya 'Buraxılış' düymələrindən birini seçərək öz imtahan növünüzü təyin edin.\n\n"
+        "1️⃣ *İmtahanı Seçin:* `/start` və ya `/clean` əmri ilə ana menyuya qayıdın. 'Qəbul' və ya 'Buraxılış' düymələrindən birini seçərək öz imtahan növünüzü təyin edin.\n\n"
         "2️⃣ *Məlumatları Daxil Edin:* Botun sizə göstərdiyi suallara uyğun olaraq nəticələrinizi (düz, səhv, bal və s.) yazıb göndərin.\n\n"
         "3️⃣ *Nəticəni Əldə Edin:* Bütün məlumatları təsdiqlədikdən sonra bot yekun balınızı dərhal hesablayıb göstərəcək.\n\n"
         "--- \n"
@@ -127,7 +125,7 @@ async def istifade_telimatini_goster(update: Update, context: ContextTypes.DEFAU
         "↩️ *Geri:* Proses zamanı bir əvvəlki addıma qayıtmaq üçün istifadə olunur.\n\n"
         "✏️ *Düzəliş et:* Daxil etdiyiniz son rəqəmi yenidən yazmaq üçün istifadə olunur.\n\n"
         "❌ *Ləğv et:* Hesablama prosesini tamamilə dayandırıb avtomatik olaraq ana menyuya qayıtmaq üçün istifadə olunur.\n\n"
-        "🧹 `clean` *əmri:* Söhbət pəncərəsini təmizləyib botu yenidən başlamaq üçün bu sözü yazıb göndərin.\n\n"
+        "🧹 `/clean` *əmri:* Söhbət pəncərəsini təmizləyib botu yenidən başlamaq üçün bu əmri yazıb göndərin.\n\n"
         "Uğurlar!"
     )
     keyboard = [[InlineKeyboardButton("↩️ Ana Səhifəyə Qayıt", callback_data='meny_ana')]]
@@ -268,7 +266,6 @@ async def daxil_edilen_metni_yoxla(update: Update, context: ContextTypes.DEFAULT
 
     if not is_valid:
         await context.bot.send_message(chat_id=chat_id, text=error_msg)
-        # Re-ask the question after error
         return await novbeti_suali_sorus(update, context, addim_adi=addim_adi)
     
     context.user_data['temp_deyer'] = temp_deyer
@@ -466,9 +463,9 @@ async def temizle_ve_baslat(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     chat_id = update.effective_chat.id
     current_message_id = update.message.message_id
     
-    logger.info(f"'{chat_id}' üçün ekran təmizləmə prosesi başlanır...")
+    logger.info(f"'{chat_id}' üçün /clean əmri ilə ekran təmizləmə prosesi başlanır...")
 
-    for i in range(50): # Son 50 mesajı silməyə cəhd edir
+    for i in range(100): # Son 100 mesajı silməyə cəhd edir
         message_id_to_delete = current_message_id - i
         
         if message_id_to_delete <= 0:
@@ -493,7 +490,7 @@ def main() -> None:
     conv_handler = ConversationHandler(
         entry_points=[
             CommandHandler('start', ana_menyunu_goster),
-            MessageHandler(filters.Regex(r'(?i)^clean$'), temizle_ve_baslat)
+            CommandHandler('clean', temizle_ve_baslat) # 'clean' sözü əvəzinə /clean əmri
         ],
         states={
             VEZIYYET_IMTAHAN_SECIMI: [
@@ -525,14 +522,13 @@ def main() -> None:
         },
         fallbacks=[
             CallbackQueryHandler(prosesi_legv_et, pattern='^legv_et$'),
-            MessageHandler(filters.Regex(r'(?i)^clean$'), temizle_ve_baslat),
+            CommandHandler('clean', temizle_ve_baslat), # 'clean' sözü əvəzinə /clean əmri
             CommandHandler('start', ana_menyunu_goster)
         ],
         persistent=False, name="imtahan_sohbeti"
     )
 
     application.add_handler(conv_handler)
-    # Bu handler artıq ConversationHandler-in içində olduğu üçün ayrıca əlavə etməyə ehtiyac yoxdur.
     
     print("Bot işə düşdü...")
     application.run_polling()
