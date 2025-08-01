@@ -1,4 +1,5 @@
 import logging
+import re
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
     Application,
@@ -410,15 +411,17 @@ async def netice_hesabla_ve_goster(update: Update, context: ContextTypes.DEFAULT
         if imtahan_tipi.startswith('qebul'):
             qrup_info = qrup_emsallari[imtahan_tipi]
             nisbi_ballar = {fk: fenn_bali_hesabla(data, fk) for fk, _, _ in qrup_info['fennler']}
-            total_bal = (nisbi_ballar['riyaziyyat'] * qrup_info['emsallar'][0] + 
+            
+            # Ümumi əmsallar cəminə əsasən 400 ballıq sistemə çevirmə
+            total_bal = (nisbi_ballar[qrup_info['fennler'][0][0]] * qrup_info['emsallar'][0] + 
                          nisbi_ballar[qrup_info['fennler'][1][0]] * qrup_info['emsallar'][1] + 
-                         nisbi_ballar[qrup_info['fennler'][2][0]] * qrup_info['emsallar'][2]) * 400 / (sum(qrup_info['emsallar'])*100)
+                         nisbi_ballar[qrup_info['fennler'][2][0]] * qrup_info['emsallar'][2]) * 400 / (sum(qrup_info['emsallar']) * 100)
             
             qrup_adi = imtahan_tipi.replace('qebul_', '').replace('_', ' ').upper()
             netice_metni = f"🎉 *Nəticəniz ({qrup_adi} - Qəbul Fənləri)* 🎉\n"
             for (fenn_kodu, fenn_adi, emoji) in qrup_info['fennler']:
                 netice_metni += f"\n{emoji} *{fenn_adi}:* {nisbi_ballar[fenn_kodu]:.2f} / 100 (nisbi bal)\n"
-            netice_metni += f"\n-------------------------------------\n🏆 *Qəbul fənləri üzrə ümumi bal:* {total_bal:.2f} / 400"
+            netice_metni += f"\n-------------------------------------\n🏆 *Qəbul fənləri üzrə ümumi bal:* {max(0, total_bal):.2f} / 400"
 
         elif imtahan_tipi.startswith('buraxilis'):
             bal_az = bal_ingilis = bal_riyaziyyat = 0.0
@@ -502,7 +505,6 @@ async def clean_and_start(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     except Exception as e:
         logger.error(f"Mesajları silərkən xəta: {e}")
     
-    # Avtomatik olaraq ana menyunu göstərərək söhbəti yenidən başlat
     return await ana_menyunu_goster(update, context)
 
 async def lazimsiz_mesaji_sil(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -520,7 +522,6 @@ def main() -> None:
     conv_handler = ConversationHandler(
         entry_points=[
             CommandHandler('start', ana_menyunu_goster),
-            # DÜZƏLİŞ: (?i) bayrağı regex ifadəsinin tam başına çəkildi
             MessageHandler(filters.Regex(r'(?i)^clean$'), clean_and_start)
         ],
         states={
