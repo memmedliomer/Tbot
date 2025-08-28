@@ -94,7 +94,21 @@ async def addim_yadda_saxla(context: ContextTypes.DEFAULT_TYPE, addim: str):
 
 # --- Core Bot Functions ---
 async def ana_menyunu_goster(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    photo_sent = context.user_data.get('photo_sent')
+    pinned_photo_id = context.user_data.get('pinned_photo_id')
     context.user_data.clear()
+    if photo_sent and pinned_photo_id:
+        context.user_data['photo_sent'] = photo_sent
+        context.user_data['pinned_photo_id'] = pinned_photo_id
+
+    if not context.user_data.get('photo_sent'):
+        try:
+            photo_message = await update.effective_chat.send_photo(photo=open('pc1.png', 'rb'))
+            context.user_data['photo_sent'] = True
+            context.user_data['pinned_photo_id'] = photo_message.message_id
+        except (FileNotFoundError, Exception):
+            pass
+
     keyboard = [
         [InlineKeyboardButton("🎓 Buraxılış", callback_data='meny_buraxilish'), InlineKeyboardButton("🏛️ Qəbul", callback_data='meny_qebul')],
         [InlineKeyboardButton("ℹ️ İstifadə Təlimatı", callback_data='meny_telimat')]
@@ -104,7 +118,10 @@ async def ana_menyunu_goster(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     if update.callback_query:
         await update.callback_query.answer()
-        await update.callback_query.edit_message_text(text=mesaj_metni, reply_markup=reply_markup)
+        try:
+            await update.callback_query.edit_message_text(text=mesaj_metni, reply_markup=reply_markup)
+        except BadRequest:
+            await update.effective_chat.send_message(text=mesaj_metni, reply_markup=reply_markup)
     else:
         await update.effective_chat.send_message(text=mesaj_metni, reply_markup=reply_markup)
         
@@ -459,28 +476,21 @@ async def lazimsiz_mesaji_sil(update: Update, context: ContextTypes.DEFAULT_TYPE
         logger.info("Silinəcək lazımsız mesaj tapılmadı.")
 
 async def temizle_ve_baslat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Söhbət tarixçəsini təmizləyir və botu yenidən başladır."""
     chat_id = update.effective_chat.id
     current_message_id = update.message.message_id
-    
-    logger.info(f"'{chat_id}' üçün /clean əmri ilə ekran təmizləmə prosesi başlanır...")
+    pinned_photo_id = context.user_data.get('pinned_photo_id')
 
-    for i in range(100): # Son 100 mesajı silməyə cəhd edir
+    for i in range(100):
         message_id_to_delete = current_message_id - i
-        
         if message_id_to_delete <= 0:
             break
-        
+        if message_id_to_delete == pinned_photo_id:
+            continue
         try:
             await context.bot.delete_message(chat_id, message_id_to_delete)
-        except BadRequest:
-            logger.warning(f"Mesaj {message_id_to_delete} silinə bilmədi (çox köhnə və ya mövcud deyil).")
-        except Exception as e:
-            logger.error(f"Mesaj silinərkən gözlənilməz xəta: {e}")
-            break
-
-    logger.info("Ekran təmizləndi. Ana menyu göstərilir.")
-    
+        except (BadRequest, Exception):
+            pass
+            
     return await ana_menyunu_goster(update, context)
 
 # --- Main Bot Setup ---
@@ -490,7 +500,7 @@ def main() -> None:
     conv_handler = ConversationHandler(
         entry_points=[
             CommandHandler('start', ana_menyunu_goster),
-            CommandHandler('clean', temizle_ve_baslat) # 'clean' sözü əvəzinə /clean əmri
+            CommandHandler('clean', temizle_ve_baslat)
         ],
         states={
             VEZIYYET_IMTAHAN_SECIMI: [
@@ -522,7 +532,7 @@ def main() -> None:
         },
         fallbacks=[
             CallbackQueryHandler(prosesi_legv_et, pattern='^legv_et$'),
-            CommandHandler('clean', temizle_ve_baslat), # 'clean' sözü əvəzinə /clean əmri
+            CommandHandler('clean', temizle_ve_baslat),
             CommandHandler('start', ana_menyunu_goster)
         ],
         persistent=False, name="imtahan_sohbeti"
